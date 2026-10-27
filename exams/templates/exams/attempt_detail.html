@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ attempt.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ attempt.full_name }}</h1>
+    <div class="muted small">Roll {{ attempt.roll_number }} &middot; {{ exam.title }}</div>
+  </div>
+  <div class="toolbar">
+    {% if can_restart %}
+      <form method="post" action="{% url 'attempt_restart' attempt.id %}" onsubmit="return confirm('Restart this student\'s quiz? Their current attempt is saved in the history and they start again from the beginning. Other students are not affected.');">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'attempt_detail' attempt.id %}">
+        <button class="btn" type="submit">Restart Quiz</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-ghost" href="{% url 'exam_monitor' exam.id %}">Back to live dashboard</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="stat"><div class="muted small">Status</div><div class="v"><span class="sbadge sb-{{ attempt.status_key }}">{{ attempt.display_status }}</span></div></div>
+  <div class="stat"><div class="muted small">Score</div><div class="v">{% if attempt.status == "submitted" or attempt.status == "terminated" %}{{ attempt.score }} / {{ attempt.total_marks }}{% else %}-{% endif %}</div></div>
+  <div class="stat"><div class="muted small">Answered</div><div class="v">{{ answered }} / {{ question_total }}</div></div>
+  <div class="stat"><div class="muted small">Warnings</div><div class="v">{{ attempt.warning_count }} <span class="muted small">of {{ exam.max_warnings }} allowed</span></div></div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="small">Started: {% if attempt.started_at %}{{ attempt.started_at|date:"d M Y, H:i:s" }}{% else %}not started{% endif %}
+    &middot; Ended: {% if attempt.ended_at %}{{ attempt.ended_at|date:"d M Y, H:i:s" }}{% else %}-{% endif %}
+    {% if attempt.end_reason %}&middot; How it ended: {{ attempt.end_reason }}{% endif %}
+  </div>
+  {% if attempt.flagged %}<div class="small bad" style="margin-top:6px">Flagged: this student went over the warning limit.</div>{% endif %}
+  {% if attempt.status == "terminated" %}
+    <div class="small" style="margin-top:6px">Terminated {% if attempt.terminated_by %}by {{ attempt.terminated_by.username }}{% else %}automatically{% endif %}. Reason: {{ attempt.termination_reason|default:"none given" }}</div>
+  {% endif %}
+  {% if attempt.status == "joined" or attempt.status == "active" %}
+    <form method="post" action="{% url 'attempt_terminate' attempt.id %}" style="margin-top:14px">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'attempt_detail' attempt.id %}">
+      <label for="reason">Reason for {% if attempt.status == "joined" %}removing{% else %}terminating{% endif %} this student (they will see it)</label>
+      <textarea name="reason" id="reason" rows="2" maxlength="300"></textarea>
+      <button class="btn btn-danger btn-sm" type="submit" style="margin-top:10px">{% if attempt.status == "joined" %}Remove student{% else %}Terminate quiz{% endif %}</button>
+    </form>
+  {% endif %}
+</div>
+
+{% if attempt.attempt_number > 1 %}<div class="info-box" style="margin-bottom:16px">This is <b>try {{ attempt.attempt_number }}</b> for this student. Earlier tries are listed under Attempt history below.</div>{% endif %}
+
+<h2>Warning history</h2>
+<div class="table-wrap">
+  <table>
+    <tr><th>#</th><th>Time</th><th>Event</th><th>Time away</th></tr>
+    {% for w in warnings %}
+      <tr>
+        <td>{{ w.warning_number }}</td>
+        <td>{{ w.created_at|date:"d M Y, H:i:s" }}</td>
+        <td>{{ w.get_kind_display }}</td>
+        <td>{% if w.away_seconds is not None %}{{ w.away_seconds }} s{% else %}-{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="muted">No warnings recorded.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2>Answers</h2>
+{% for r in review %}
+  <div class="card review {% if r.is_correct %}right{% elif r.answered %}wrong{% endif %}">
+    <div style="font-weight:600; margin-bottom:6px">{{ forloop.counter }}. {{ r.question.text }} <span class="muted small">({{ r.question.marks }} mark{{ r.question.marks|pluralize }})</span></div>
+    <div class="small">Answer given:
+      {% if r.is_correct %}<span class="ok">{{ r.chosen }}</span>{% elif r.answered %}<span class="bad">{{ r.chosen }}</span>{% else %}<span class="muted">{{ r.chosen }}</span>{% endif %}
+    </div>
+    {% if not r.is_correct %}<div class="small">Correct answer: <span class="ok">{{ r.correct }}</span></div>{% endif %}
+    <div class="small muted">Marks awarded: {{ r.marks_awarded }}</div>
+  </div>
+{% endfor %}
+
+<h2>Attempt history</h2>
+{% for h in history %}
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap">
+      <b>Try {{ h.attempt_number }}</b>
+      <span class="muted small">Restarted {{ h.restarted_at|date:"d M Y, H:i:s" }} by {{ h.restarted_by.username|default:"unknown" }}</span>
+    </div>
+    <div class="small" style="margin-top:6px">
+      Status when restarted: {{ h.status }} &middot; Score {{ h.score }} / {{ h.total_marks }} &middot; Warnings {{ h.warning_count }}{% if h.flagged %} (flagged){% endif %}
+      &middot; Started {% if h.started_at %}{{ h.started_at|date:"d M Y, H:i:s" }}{% else %}-{% endif %}
+      &middot; Ended {% if h.ended_at %}{{ h.ended_at|date:"d M Y, H:i:s" }}{% else %}not ended{% endif %}
+    </div>
+    {% if h.termination_reason %}<div class="small muted">Termination reason: {{ h.termination_reason }}</div>{% endif %}
+    {% if h.note %}<div class="small muted">Note: {{ h.note }}</div>{% endif %}
+    <details style="margin-top:8px"><summary class="small">Answers and timeline of this try</summary>
+      {% for a in h.answers %}
+        <div class="small" style="margin-top:6px">{{ forloop.counter }}. {{ a.question }} &mdash;
+          {% if a.chosen %}<span class="{% if a.is_correct %}ok{% else %}bad{% endif %}">{{ a.chosen }}</span>{% else %}<span class="muted">Not answered</span>{% endif %}
+          {% if not a.is_correct %}<span class="muted">(correct: {{ a.correct }})</span>{% endif %}</div>
+      {% endfor %}
+      <div style="margin-top:10px">
+        {% for e in h.events %}<div class="muted small">{{ e.created_at|date:"H:i:s" }} &middot; {{ e.get_kind_display }}{% if e.detail %} &middot; {{ e.detail }}{% endif %}</div>{% endfor %}
+      </div>
+    </details>
+  </div>
+{% empty %}
+  <div class="card muted small" style="margin-bottom:16px">No earlier tries. This is the first attempt.</div>
+{% endfor %}
+
+<h2>Full timeline</h2>
+<div class="card">
+  {% for e in events %}
+    <div class="feed-item {% if e.kind == 'tab_switch' %}warnk{% elif e.kind == 'flagged' or e.kind == 'terminated' %}bad{% endif %}">
+      <div>{{ e.get_kind_display }}{% if e.warning_number %} (warning {{ e.warning_number }}){% endif %}</div>
+      {% if e.detail %}<div class="muted small">{{ e.detail }}</div>{% endif %}
+      <div class="muted small">{{ e.created_at|date:"d M Y, H:i:s" }}{% if e.away_seconds is not None %} &middot; away {{ e.away_seconds }} s{% endif %}</div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

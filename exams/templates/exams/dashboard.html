@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Teacher Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Teacher Dashboard</h1>
+    <p class="muted" style="margin:0">Create live quizzes, share a test code and monitor your students in real time.</p>
+  </div>
+  <div class="toolbar">
+    <a class="btn btn-ghost" href="{% url 'reconduct_select' %}">Reconduct Test</a>
+    <a class="btn" href="{% url 'exam_create' %}">+ New Quiz</a>
+  </div>
+</div>
+
+<div class="grid">
+  {% for e in exams %}
+    <div class="card quiz-card">
+      <div>
+        <h3>{{ e.title }}</h3>
+        {% if e.is_reconducted %}<div class="badges" style="margin-bottom:4px"><span class="badge badge-purple">Reconducted &middot; session {{ e.session_number }} of "{{ e.original.title }}"</span></div>{% endif %}
+        <div class="muted small">{{ e.num_questions }} questions &middot; {{ e.duration_minutes }} min &middot; {{ e.num_students }} students</div>
+        {% if e.status == "draft" and e.scheduled_start %}
+          <div class="muted small">Scheduled: {{ e.scheduled_start|date:"d M Y, H:i" }}</div>
+        {% endif %}
+      </div>
+      <div><span class="sbadge sb-{{ e.status }}">{{ e.get_status_display }}</span></div>
+      <div class="actions">
+        <a class="btn btn-sm" href="{% url 'exam_monitor' e.id %}">{% if e.status == "draft" %}Open{% else %}Monitor{% endif %}</a>
+        {% if e.status == "draft" %}
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_edit' e.id %}">Edit</a>
+        {% endif %}
+        {% if e.status != "draft" %}
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_results_csv' e.id %}">Results CSV</a>
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_reconduct' e.id %}">Reconduct</a>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <div class="card" style="grid-column: 1 / -1;">
+      <h3>No quizzes yet</h3>
+      <p class="muted">Click <b>New Quiz</b> to create your first live quiz.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

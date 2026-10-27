@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Instructions{% endblock %}
+{% block content %}
+<div class="narrow" style="max-width:680px">
+  <h1>{{ exam.title }}</h1>
+  <div class="muted small" style="margin-bottom:16px">{{ attempt.full_name }} &middot; Roll {{ attempt.roll_number }}</div>
+
+  {% if attempt.restart_notice %}
+    <div class="info-box warn" style="margin-bottom:16px"><b>Your teacher restarted your quiz.</b> Your answers and timer were reset, so you start again from the beginning (try {{ attempt.attempt_number }}). Your earlier attempt is kept on record.</div>
+  {% endif %}
+
+  {% if exam.description %}<div class="card" style="margin-bottom:16px; white-space:pre-line">{{ exam.description }}</div>{% endif %}
+
+  <div class="detail-grid">
+    <div class="stat"><div class="muted small">Questions</div><div class="v">{{ question_count }}</div></div>
+    <div class="stat"><div class="muted small">Total marks</div><div class="v">{{ total_marks }}</div></div>
+    <div class="stat"><div class="muted small">Your time</div><div class="v">{{ time_for_you }} min</div></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Rules</h2>
+    <ul class="rules">
+      <li>Your timer starts when you press <b>Start quiz</b>. The official time is kept by the server, so refreshing or closing the page does not pause it.</li>
+      <li>Each question has four options. Your answers are <b>saved automatically</b>. You can move between questions with Previous, Next or the question panel, and change answers until you submit.</li>
+      <li>When your time ends, or if your teacher closes the quiz, you cannot change answers any more.{% if exam.auto_submit_on_expiry %} Your saved answers will be submitted automatically.{% else %} Answers you did not submit will not be counted.{% endif %}</li>
+      <li><b>Do not leave the quiz page.</b> Switching to another tab or minimizing the browser is recorded as a warning and your teacher is told straight away. You are allowed <b>{{ exam.max_warnings }}</b> warning{{ exam.max_warnings|pluralize }}.
+        If you go over the limit,
+        {% if exam.on_violation_limit == "flag" %}you will be flagged for your teacher to review.
+        {% elif exam.on_violation_limit == "submit" %}you will be flagged and your quiz will be submitted automatically.
+        {% else %}you will be flagged and your quiz will be terminated.{% endif %}</li>
+      {% if exam.require_fullscreen %}<li><b>Stay in fullscreen.</b> The quiz asks you to enter fullscreen mode. If you leave it (for example by pressing Esc), you get a warning that counts like a tab switch, and you must go back to fullscreen to continue. If your device cannot do fullscreen, this rule is skipped.</li>{% endif %}
+      {% if exam.block_clipboard %}<li><b>Copy, cut, paste and right-click are turned off</b> on the quiz page.</li>{% endif %}
+      {% if exam.shuffle_questions or exam.shuffle_options %}<li>The questions{% if exam.shuffle_options %} and their options{% endif %} can appear in a different order from your classmates' quizzes. Your answers are marked correctly whatever order you see.</li>{% endif %}
+      <li>Your teacher can <b>pause</b> the quiz or give extra time. While paused, your timer stops and you cannot answer. You do not lose any time.</li>
+    </ul>
+    <div class="info-box" style="margin-top:12px">
+      This check can only tell when the quiz page is hidden. It cannot see other apps or devices, so it does not prove cheating by itself. Your teacher decides what a warning means.
+    </div>
+  </div>
+
+  {% if start_block %}<div class="info-box warn" style="margin-top:16px">{{ start_block }}</div>{% endif %}
+  <form method="post" action="{% url 'attempt_begin' attempt.id %}" class="card" style="margin-top:16px">
+    {% csrf_token %}
+    <div class="field check" style="margin-bottom:14px">
+      <input type="checkbox" id="agree">
+      <label for="agree">I have read the rules and I am ready to start.</label>
+    </div>
+    <button class="btn btn-block" type="submit" id="start-btn" disabled {% if start_block %}data-blocked="1"{% endif %}>Start quiz</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('agree').addEventListener('change', function () {
+    var btn = document.getElementById('start-btn');
+    btn.disabled = !this.checked || !!btn.dataset.blocked;
+  });
+  {% if start_block and exam.is_paused %}setTimeout(function () { window.location.reload(); }, 5000);{% endif %}
+</script>
+{% endblock %}

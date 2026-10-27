@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.title }}{% endblock %}
+{% block content %}
+<div class="exam-head">
+  <div>
+    <h1>{{ exam.title }}</h1>
+    <div class="muted small">{{ attempt.full_name }} &middot; Roll {{ attempt.roll_number }}</div>
+  </div>
+  <div class="exam-meta">
+    <span class="warn-chip" id="warn-chip">Warnings 0/0</span>
+    <div class="timer" id="timer">--:--</div>
+  </div>
+</div>
+<div class="notice hidden" id="notice"></div>
+
+<div class="exam-layout">
+  <div>
+    <div class="q-card" id="q-card">
+      <div class="q-type" id="q-info"></div>
+      <h2 class="q-text" id="q-text"></h2>
+      <div id="options"></div>
+      <div class="q-footer">
+        <button class="btn btn-ghost" id="prev-btn" type="button">Previous</button>
+        <span class="save-state" id="save-state"></span>
+        <button class="btn" id="next-btn" type="button">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <aside class="card qnav-card" id="qnav-card">
+    <div style="font-weight:700">Questions</div>
+    <div class="muted small" id="answered-count"></div>
+    <div class="qnav" id="qnav"></div>
+    <div class="legend"><span>Green = answered</span><span>Grey = not yet</span></div>
+    <button class="btn btn-block" id="submit-btn" type="button" style="margin-top:14px">Submit quiz</button>
+  </aside>
+</div>
+
+<form id="csrf-holder" style="display:none">{% csrf_token %}</form>
+
+<div class="modal-backdrop hidden" id="confirm-modal">
+  <div class="modal">
+    <h2>Submit your quiz?</h2>
+    <p id="confirm-text" class="muted"></p>
+    <p class="bad small hidden" id="confirm-error"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="confirm-back" type="button">Go back</button>
+      <button class="btn" id="confirm-yes" type="button">Yes, submit</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="warn-modal">
+  <div class="modal warn">
+    <h2>Warning</h2>
+    <p id="warn-text"></p>
+    <p class="muted small">Your teacher has been notified.</p>
+    <div class="modal-actions"><button class="btn" id="warn-ok" type="button">Continue quiz</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="fs-modal">
+  <div class="modal warn">
+    <h2 id="fs-title">Fullscreen required</h2>
+    <p id="fs-text"></p>
+    <p class="bad small hidden" id="fs-error"></p>
+    <div class="modal-actions"><button class="btn" id="fs-btn" type="button">Enter fullscreen</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="pause-modal">
+  <div class="modal warn">
+    <h2>Quiz paused</h2>
+    <p>Your teacher paused the quiz. Your timer is stopped, so you are not losing any time. Please wait: this page continues by itself when the quiz is resumed.</p>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="end-modal">
+  <div class="modal" id="end-box">
+    <h2 id="end-title"></h2>
+    <p id="end-text"></p>
+    <div class="modal-actions"><a class="btn" id="end-link" href="#">Continue</a></div>
+  </div>
+</div>
+{{ payload|json_script:"exam-data" }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var cfg = JSON.parse(document.getElementById('exam-data').textContent);
+  var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  var questions = cfg.questions, total = questions.length;
+  var answers = {};   // question id -> ORIGINAL option index (0-3), whatever order it was shown in
+  Object.keys(cfg.answers).forEach(function (k) { answers[k] = cfg.answers[k]; });
+  var current = 0, ended = false, submitting = false, expiring = false, unloading = false, paused = false;
+  var deadline = performance.now() + cfg.remaining * 1000;   // monotonic clock: changing the PC clock does nothing
+
+  var $ = function (id) { return document.getElementById(id); };
+  var timerEl = $('timer'), warnChip = $('warn-chip'), saveEl = $('save-state');
+  var prevBtn = $('prev-btn'), nextBtn = $('next-btn'), submitBtn = $('submit-btn');
+
+  // ---------------- small helpers ----------------
+  var noticeTimer = null;
+  function flash(text) {
+    var n = $('notice');
+    n.textContent = text;
+    n.classList.remove('hidden');
+    if (noticeTimer) { clearTimeout(noticeTimer); }
+    noticeTimer = setTimeout(function () { n.classList.add('hidden'); }, 8000);
+  }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin', keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'Accept': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (r) { return r.json(); });
+  }
+  function get(url) {
+    return fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); });
+  }
+
+  function fmt(sec) {
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    var mm = (m < 10 ? '0' : '') + m, ss = (s < 10 ? '0' : '') + s;
+    return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+  }
+
+  function updateWarnChip(count, max) {
+    warnChip.textContent = 'Warnings ' + count + '/' + max;
+    warnChip.className = 'warn-chip' + (count > max ? ' over' : (count > 0 ? ' has' : ''));
+  }
+
+  // ---------------- fullscreen ----------------
+  var root = document.documentElement;
+  var fsSupported = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  var fsRequired = !!cfg.requireFullscreen && fsSupported;
+  var fsEntered = false, lastViolation = { kind: '', at: 0 };
+
+  function inFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function exitFs() {
+    try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) { /* not in fullscreen */ }
+  }
+  function noteViolation(kind) { lastViolation = { kind: kind, at: Date.now() }; }
+  function recentViolation(kind) { return lastViolation.kind === kind && Date.now() - lastViolation.at < 1500; }
+
+  function showFsModal(warnText) {
+    if (ended || paused) { return; }
+    $('fs-title').textContent = warnText ? 'You left fullscreen' : 'Fullscreen required';
+    $('fs-text').textContent = warnText ||
+      'This quiz must be taken in fullscreen mode. Click the button to enter fullscreen and continue.';
+    $('fs-error').classList.add('hidden');
+    $('fs-modal').classList.remove('hidden');
+  }
+  function hideFsModal() { $('fs-modal').classList.add('hidden'); }
+
+  function onFsChange() {
+    if (!fsRequired || ended || submitting) { return; }
+    if (inFs()) { fsEntered = true; hideFsModal(); return; }
+    if (paused) { return; }                       // nothing is counted while the quiz is paused
+    showFsModal(null);                            // the student must come back to continue
+    if (!fsEntered || unloading || recentViolation('hidden')) { return; }
+    noteViolation('fullscreen_exit');
+    post(cfg.urls.event, { type: 'fullscreen_exit' }).then(function (r) {
+      applyState(r);
+      if (ended || !r || r.ok === false) { return; }
+      var text = 'You left fullscreen mode. This is warning ' + r.warnings + ' of ' + r.maxWarnings + '.';
+      if (r.warnings === r.maxWarnings) { text += ' This was your final warning.'; }
+      if (r.warnings > r.maxWarnings) { text += ' You have gone over the limit and have been flagged.'; }
+      showFsModal(text + ' Your teacher has been notified. Click the button to return to fullscreen.');
+    }).catch(function () {});
+  }
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
+
+  $('fs-btn').addEventListener('click', function () {
+    var failed = function () {
+      $('fs-error').textContent = 'Your browser did not allow fullscreen. Please try again.';
+      $('fs-error').classList.remove('hidden');
+    };
+    try {
+      var p = (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+      if (p && p.catch) { p.catch(failed); }
+    } catch (e) { failed(); }
+  });
+
+  // ---------------- copy / paste / right-click blocking ----------------
+  if (cfg.blockClipboard) {
+    ['copy', 'cut', 'paste', 'contextmenu', 'dragstart'].forEach(function (type) {
+      document.addEventListener(type, function (e) {
+        e.preventDefault();
+        if (type !== 'dragstart') { flash('Copy, paste and right-click are turned off during this quiz.'); }
+      });
+    });
+    $('q-card').classList.add('noselect');
+    $('qnav-card').classList.add('noselect');
+  }
+
+  // ---------------- pause ----------------
+  function setPaused(value) {
+    if (value === paused) { return; }
+    paused = value;
+    if (paused) {
+      hideFsModal();
+      $('pause-modal').classList.remove('hidden');
+    } else {
+      $('pause-modal').classList.add('hidden');
+      if (fsRequired && !inFs() && !ended) { showFsModal(null); }   // come back to fullscreen to carry on
+    }
+    render(false);
+  }
+
+  // The server is the boss: every answer carries the official state (time left, paused, ended).
+  function applyState(s) {
+    if (!s) { return; }
+    if (typeof s.remaining === 'number') {
+      var leftBefore = (deadline - performance.now()) / 1000;
+      if (!paused && !s.paused && s.remaining - leftBefore > 20) { flash('Your teacher added extra time to your timer.'); }
+      deadline = performance.now() + s.remaining * 1000;
+      if (s.paused) { timerEl.textContent = fmt(s.remaining); }
+    }
+    if (typeof s.warnings === 'number') { updateWarnChip(s.warnings, s.maxWarnings); }
+    if (typeof s.paused === 'boolean') { setPaused(s.paused); }
+    if (s.status && s.status !== 'active') { showEnd(s.end); }
+  }
+
+  function showEnd(end) {
+    if (ended) { return; }
+    ended = true;
+    ['confirm-modal', 'warn-modal', 'fs-modal', 'pause-modal'].forEach(function (id) { $(id).classList.add('hidden'); });
+    if (inFs()) { exitFs(); }
+    end = end || { title: 'Quiz ended', message: 'This quiz has ended.', tone: 'warn' };
+    $('end-title').textContent = end.title;
+    $('end-text').textContent = end.message;
+    $('end-box').className = 'modal ' + (end.tone || '');
+    $('end-link').href = cfg.urls.done;
+    $('end-modal').classList.remove('hidden');
+    timerEl.textContent = '--:--';
+    render(false);
+  }
+
+  // ---------------- autosave ----------------
+  var pending = {}, flushing = false;
+  function setSave(state) {
+    saveEl.className = 'save-state' + (state === 'error' ? ' err' : '');
+    saveEl.textContent = state === 'saving' ? 'Saving...' : (state === 'saved' ? 'All answers saved' :
+      (state === 'error' ? 'Could not save. Check your connection.' : ''));
+  }
+  function flush() {
+    if (flushing) { return Promise.resolve(); }
+    var keys = Object.keys(pending);
+    if (!keys.length) { return Promise.resolve(); }
+    flushing = true;
+    var qid = keys[0], choice = pending[qid];
+    return post(cfg.urls.save, { question: Number(qid), choice: choice }).then(function (r) {
+      flushing = false;
+      if (pending[qid] === choice) { delete pending[qid]; }
+      applyState(r);
+      if (ended) { return; }
+      if (Object.keys(pending).length) { return flush(); }
+      setSave('saved');
+    }).catch(function () { flushing = false; setSave('error'); });
+  }
+  function flushAll(n) {
+    n = n || 0;
+    return flush().then(function () {
+      if (Object.keys(pending).length && !ended && n < 3) {
+        return new Promise(function (res) { setTimeout(res, 500); }).then(function () { return flushAll(n + 1); });
+      }
+    });
+  }
+  function choose(q, shownIndex) {
+    if (ended || paused) { return; }
+    var original = q.map[shownIndex];   // the saved answer always uses the ORIGINAL option number
+    answers[q.id] = original;
+    pending[q.id] = original;
+    setSave('saving');
+    flush();
+    render(false);
+  }
+
+  // ---------------- drawing the page ----------------
+  function countAnswered() {
+    var n = 0;
+    questions.forEach(function (q) { if (answers[q.id] !== undefined) { n++; } });
+    return n;
+  }
+
+  function renderNav() {
+    var nav = $('qnav');
+    nav.innerHTML = '';
+    questions.forEach(function (q, idx) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'qn' + (answers[q.id] !== undefined ? ' answered' : '') + (idx === current ? ' current' : '');
+      b.textContent = String(idx + 1);
+      b.disabled = ended || paused;
+      b.addEventListener('click', function () { current = idx; render(true); });
+      nav.appendChild(b);
+    });
+    $('answered-count').textContent = countAnswered() + ' of ' + total + ' answered';
+  }
+
+  function render(animate) {
+    var q = questions[current];
+    $('q-info').textContent = 'Question ' + (current + 1) + ' of ' + total + ' | ' + q.marks + ' mark' + (q.marks === 1 ? '' : 's');
+    $('q-text').textContent = q.text;
+    var box = $('options');
+    box.innerHTML = '';
+    q.options.forEach(function (opt, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'option' + (answers[q.id] === q.map[i] ? ' selected' : '');
+      b.disabled = ended || paused;
+      var letter = document.createElement('span');
+      letter.className = 'letter';
+      letter.textContent = 'ABCD'.charAt(i);
+      var text = document.createElement('span');
+      text.textContent = opt;
+      b.appendChild(letter);
+      b.appendChild(text);
+      b.addEventListener('click', function () { choose(q, i); });
+      box.appendChild(b);
+    });
+    prevBtn.style.visibility = current === 0 ? 'hidden' : 'visible';
+    prevBtn.disabled = ended || paused;
+    nextBtn.textContent = current === total - 1 ? 'Finish' : 'Next';
+    nextBtn.disabled = ended || paused;
+    submitBtn.disabled = ended || paused;
+    renderNav();
+    if (animate) {
+      var card = $('q-card');
+      card.classList.remove('anim');
+      void card.offsetWidth;
+      card.classList.add('anim');
+    }
+  }
+
+  // ---------------- submitting ----------------
+  function openConfirm() {
+    if (ended || paused) { return; }
+    var left = total - countAnswered();
+    $('confirm-text').textContent = 'You answered ' + countAnswered() + ' of ' + total + ' questions.' +
+      (left ? ' ' + left + ' question' + (left === 1 ? ' is' : 's are') + ' still unanswered.' : '') +
+      ' You cannot change your answers after submitting.';
+    $('confirm-error').classList.add('hidden');
+    $('confirm-yes').disabled = false;
+    $('confirm-modal').classList.remove('hidden');
+  }
+
+  function submitFinal() {
+    if (submitting || ended) { return; }
+    submitting = true;
+    $('confirm-yes').disabled = true;
+    flushAll().then(function () {
+      if (Object.keys(pending).length) { throw new Error('unsaved'); }
+      return post(cfg.urls.submit);
+    }).then(function (r) {
+      if (r && r.status === 'submitted') { window.location.href = cfg.urls.done; return; }
+      submitting = false;
+      applyState(r);
+    }).catch(function () {
+      submitting = false;
+      $('confirm-yes').disabled = false;
+      $('confirm-error').textContent = 'Could not submit. Check your internet connection and try again.';
+      $('confirm-error').classList.remove('hidden');
+    });
+  }
+
+  // ---------------- timer + heartbeat ----------------
+  function heartbeat() {
+    return get(cfg.urls.state).then(applyState).then(flush).catch(function () {});
+  }
+  function tick() {
+    if (ended || paused) { return; }   // the clock is frozen while paused
+    var rem = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
+    timerEl.textContent = fmt(rem);
+    timerEl.classList.toggle('low', rem <= 60);
+    if (rem === 0 && !expiring) {
+      expiring = true;   // time is up: ask the server, it submits the saved answers and tells us what happened
+      heartbeat().then(function () { setTimeout(function () { expiring = false; }, 3000); });
+    }
+  }
+
+  // ---------------- tab-switch detection ----------------
+  var hiddenAt = null, hiddenRequest = null;
+  document.addEventListener('visibilitychange', function () {
+    if (ended || submitting || unloading || paused) { return; }
+    if (document.hidden) {
+      if (recentViolation('fullscreen_exit')) { return; }   // leaving fullscreen already counted this
+      noteViolation('hidden');
+      hiddenAt = Date.now();
+      hiddenRequest = post(cfg.urls.event, { type: 'hidden' }).catch(function () { return null; });
+      return;
+    }
+    if (hiddenAt === null) { return; }
+    var away = Math.round((Date.now() - hiddenAt) / 1000);
+    hiddenAt = null;
+    var request = hiddenRequest || Promise.resolve(null);
+    hiddenRequest = null;
+    request.then(function (r) {
+      if (r && r.event_id) { post(cfg.urls.event, { type: 'returned', event_id: r.event_id, away_seconds: away }).catch(function () {}); }
+      applyState(r);
+      if (ended || (r && r.ok === false)) { return; }   // ok === false: nothing was counted (for example the quiz was paused)
+      var text = 'You left the quiz page for ' + away + ' second' + (away === 1 ? '' : 's') + '.';
+      if (r && typeof r.warnings === 'number') {
+        text += ' This is warning ' + r.warnings + ' of ' + r.maxWarnings + '.';
+        if (r.warnings === r.maxWarnings) { text += ' This was your final warning.'; }
+        if (r.warnings > r.maxWarnings) { text += ' You have gone over the limit and have been flagged.'; }
+      }
+      $('warn-text').textContent = text;
+      $('warn-modal').classList.remove('hidden');
+    });
+  });
+
+  // reloading or closing the page must not count as a tab switch or a fullscreen exit
+  window.addEventListener('beforeunload', function (e) {
+    if (ended || submitting) { return; }
+    unloading = true;
+    setTimeout(function () { unloading = false; }, 1500);
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  window.addEventListener('pagehide', function () { unloading = true; });
+  window.addEventListener('pageshow', function () { unloading = false; });
+
+  // ---------------- buttons ----------------
+  prevBtn.addEventListener('click', function () { if (!paused && current > 0) { current--; render(true); } });
+  nextBtn.addEventListener('click', function () {
+    if (paused) { return; }
+    if (current < total - 1) { current++; render(true); } else { openConfirm(); }
+  });
+  submitBtn.addEventListener('click', openConfirm);
+  $('confirm-back').addEventListener('click', function () { $('confirm-modal').classList.add('hidden'); });
+  $('confirm-yes').addEventListener('click', submitFinal);
+  $('warn-ok').addEventListener('click', function () { $('warn-modal').classList.add('hidden'); });
+
+  // ---------------- start ----------------
+  updateWarnChip(cfg.warnings, cfg.maxWarnings);
+  render(true);
+  tick();
+  if (cfg.paused) { setPaused(true); timerEl.textContent = fmt(cfg.remaining); }
+  if (cfg.requireFullscreen && !fsSupported) { flash('Fullscreen mode is not available on this device, so it is not required here.'); }
+  else if (fsRequired && !inFs() && !paused) { showFsModal(null); }
+  setInterval(tick, 500);
+  setInterval(heartbeat, 5000);
+})();
+</script>
+{% endblock %}

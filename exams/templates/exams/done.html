@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ info.title }}{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="card center">
+    <div class="muted small">{{ exam.title }}</div>
+    <h1 style="margin-top:8px">{{ info.title }}</h1>
+    <p class="{% if info.tone == 'bad' %}bad{% elif info.tone == 'ok' %}ok{% endif %}">{{ info.message }}</p>
+    {% if show_score %}
+      <div class="stats" style="grid-template-columns: 1fr 1fr">
+        <div class="stat"><div class="muted small">Your score</div><div class="v">{{ attempt.score }} / {{ attempt.total_marks }}</div></div>
+        <div class="stat"><div class="muted small">Answered</div><div class="v">{{ attempt.answers.count }}</div></div>
+      </div>
+    {% else %}
+      <p class="muted small">Your teacher will share the results.</p>
+    {% endif %}
+    <a class="btn" href="{% url 'student_dashboard' %}">My exams and scores</a>
+    <a class="btn btn-ghost" href="{% url 'quiz_list' %}">Back to home</a>
+  </div>
+</div>
+{% endblock %}

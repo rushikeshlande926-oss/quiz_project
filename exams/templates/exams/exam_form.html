@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}{% if exam %}Edit quiz{% else %}New quiz{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{% if exam %}Edit quiz{% else %}Create a new quiz{% endif %}</h1>
+    <p class="muted" style="margin:0">You can edit or delete a quiz until you start it.</p>
+  </div>
+  <a class="btn btn-ghost" href="{% url 'teacher_dashboard' %}">Cancel</a>
+</div>
+
+<form method="post" id="exam-form">
+  {% csrf_token %}
+  {{ form.questions_json }}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="card section">
+    <h2>Quiz details</h2>
+    <div class="field">{{ form.title.label_tag }}{{ form.title }}{{ form.title.errors }}</div>
+    <div class="field">{{ form.description.label_tag }}{{ form.description }}{{ form.description.errors }}</div>
+    <div class="form-grid">
+      <div class="field">{{ form.duration_minutes.label_tag }}{{ form.duration_minutes }}{{ form.duration_minutes.errors }}</div>
+      <div class="field">{{ form.scheduled_start.label_tag }}{{ form.scheduled_start }}{{ form.scheduled_start.errors }}</div>
+      <div class="field">{{ form.deadline.label_tag }}{{ form.deadline }}{{ form.deadline.errors }}</div>
+    </div>
+    <div class="hint">
+      The <b>duration</b> is counted for each student from the moment they press Start. The <b>start time</b> is optional:
+      the quiz opens by itself at that time (you can also start it manually). The <b>deadline</b> is optional: the whole quiz
+      closes then, even if some students still have time left. Without a deadline, the quiz closes after one duration.
+    </div>
+  </div>
+
+  <div class="card section">
+    <h2>Test code</h2>
+    <div class="field">{{ form.code_validity_minutes.label_tag }}{{ form.code_validity_minutes }}{{ form.code_validity_minutes.errors }}</div>
+    <div class="field radio-group">
+      {{ form.on_code_expiry.label_tag }}
+      {{ form.on_code_expiry }}
+      {{ form.on_code_expiry.errors }}
+    </div>
+    <div class="hint">Students who have already joined are never interrupted when the code changes. You can also regenerate or disable the code yourself while the quiz is live.</div>
+  </div>
+
+  <div class="card section">
+    <h2>Tab-switch warnings</h2>
+    <div class="form-grid">
+      <div class="field">{{ form.max_warnings.label_tag }}{{ form.max_warnings }}{{ form.max_warnings.errors }}</div>
+    </div>
+    <div class="field radio-group">
+      {{ form.on_violation_limit.label_tag }}
+      {{ form.on_violation_limit }}
+      {{ form.on_violation_limit.errors }}
+    </div>
+    <div class="info-box warn">
+      <b>Please note:</b> this feature can only tell when the quiz tab is hidden (the student switches tab, minimizes the browser or locks the screen).
+      It cannot see other applications, a second device, a phone, or split-screen use, so it can <b>not</b> detect every form of cheating.
+      Treat a warning as a signal to look at, not as proof.
+    </div>
+  </div>
+
+  <div class="card section">
+    <h2>Time and results</h2>
+    <div class="field check">
+      {{ form.auto_submit_on_expiry }}
+      <label for="{{ form.auto_submit_on_expiry.id_for_label }}">{{ form.auto_submit_on_expiry.label }}</label>
+    </div>
+    <div class="field check">
+      {{ form.show_score }}
+      <label for="{{ form.show_score.id_for_label }}">{{ form.show_score.label }}</label>
+    </div>
+    <div class="hint">If you turn the first option off, students who did not press Submit are marked as "Closed (not submitted)" with a score of 0. Their saved answers stay visible to you.</div>
+  </div>
+
+  <div class="card section">
+    <h2>Exam environment</h2>
+    <div class="field check">{{ form.shuffle_questions }}<label for="{{ form.shuffle_questions.id_for_label }}">{{ form.shuffle_questions.label }}</label></div>
+    <div class="field check">{{ form.shuffle_options }}<label for="{{ form.shuffle_options.id_for_label }}">{{ form.shuffle_options.label }}</label></div>
+    <div class="field check">{{ form.require_fullscreen }}<label for="{{ form.require_fullscreen.id_for_label }}">{{ form.require_fullscreen.label }}</label></div>
+    <div class="field check">{{ form.block_clipboard }}<label for="{{ form.block_clipboard.id_for_label }}">{{ form.block_clipboard.label }}</label></div>
+    <div class="info-box warn">
+      <b>What these can and cannot do:</b> shuffling makes copying from a neighbour harder, and marking always follows the original options, whatever order a student sees.
+      Fullscreen and copy/paste blocking run in the student's browser, so a determined student can get around them (another device, a photo of the screen, developer tools).
+      Fullscreen is not available on some phones and tablets (for example iPhone), where it is skipped automatically.
+    </div>
+  </div>
+
+  <div class="card section">
+    <h2>Questions</h2>
+
+    <div class="gen-box">
+      <h3>Generate questions with Gemini</h3>
+      <div class="muted small">Upload your notes (typed, scanned or handwritten). Gemini writes multiple-choice questions and adds them below. <b>Read every question and answer before saving</b>: AI can make mistakes.</div>
+      <div class="gen-row">
+        <div><label for="gen-files">Notes files (PDF, PNG, JPG, WEBP, TXT)</label><input type="file" id="gen-files" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"></div>
+        <div><label for="gen-count">Number of questions</label><input type="number" id="gen-count" min="3" max="30" value="10"></div>
+        <div><label for="gen-marks">Marks per question</label><input type="number" id="gen-marks" min="1" max="100" value="1"></div>
+      </div>
+      <button type="button" class="btn" id="gen-btn" data-url="{% url 'exam_generate_questions' %}">Generate questions</button>
+      <div class="indeterminate hidden" id="gen-progress"></div>
+      <div class="gen-msg" id="gen-msg"></div>
+    </div>
+
+    <div id="questions-box"></div>
+    <button type="button" class="btn btn-ghost" id="add-question">+ Add question</button>
+  </div>
+
+  <button class="btn btn-block" type="submit">Save quiz</button>
+</form>
+{{ initial_questions|json_script:"initial-questions" }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var questions = JSON.parse(document.getElementById('initial-questions').textContent);
+  var box = document.getElementById('questions-box');
+  var hidden = document.getElementById('id_questions_json');
+  var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  function blank() { return { text: '', options: ['', '', '', ''], correct: 0, marks: 1 }; }
+  if (!questions.length) { questions.push(blank()); }
+
+  function sync() { hidden.value = JSON.stringify(questions); }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined) { e.textContent = text; }
+    return e;
+  }
+
+  function render() {
+    box.innerHTML = '';
+    questions.forEach(function (q, idx) {
+      var card = el('div', 'qcard');
+
+      var head = el('div', 'qcard-head');
+      head.appendChild(el('span', '', 'Question ' + (idx + 1)));
+      var remove = el('button', 'btn btn-ghost btn-sm', 'Remove');
+      remove.type = 'button';
+      remove.addEventListener('click', function () {
+        questions.splice(idx, 1);
+        if (!questions.length) { questions.push(blank()); }
+        render();
+      });
+      head.appendChild(remove);
+      card.appendChild(head);
+
+      var text = el('textarea');
+      text.rows = 2;
+      text.placeholder = 'Type the question here';
+      text.value = q.text;
+      text.addEventListener('input', function () { q.text = text.value; sync(); });
+      card.appendChild(text);
+
+      q.options.forEach(function (opt, i) {
+        var row = el('div', 'opt-row');
+        var radio = el('input');
+        radio.type = 'radio';
+        radio.name = 'correct-' + idx;
+        radio.checked = q.correct === i;
+        radio.title = 'Mark as the correct answer';
+        radio.addEventListener('change', function () { q.correct = i; sync(); });
+        row.appendChild(radio);
+        row.appendChild(el('span', 'tag', 'ABCD'.charAt(i)));
+        var input = el('input');
+        input.type = 'text';
+        input.maxLength = 300;
+        input.placeholder = 'Option ' + 'ABCD'.charAt(i);
+        input.value = opt;
+        input.addEventListener('input', function () { q.options[i] = input.value; sync(); });
+        row.appendChild(input);
+        card.appendChild(row);
+      });
+
+      var marksRow = el('div', 'opt-row');
+      marksRow.appendChild(el('span', 'muted small', 'Select the radio button next to the correct answer.   Marks:'));
+      var marks = el('input', 'marks-input');
+      marks.type = 'number';
+      marks.min = 1;
+      marks.max = 100;
+      marks.value = q.marks;
+      marks.addEventListener('input', function () { q.marks = marks.value; sync(); });
+      marksRow.appendChild(marks);
+      card.appendChild(marksRow);
+
+      box.appendChild(card);
+    });
+    sync();
+  }
+
+  // ---------- generate questions from notes with Gemini ----------
+  var genBtn = document.getElementById('gen-btn');
+  var genMsg = document.getElementById('gen-msg');
+  var genProgress = document.getElementById('gen-progress');
+
+  function isBlank(q) {
+    return !String(q.text).trim() && q.options.every(function (o) { return !String(o).trim(); });
+  }
+  function setGenMsg(text, bad) {
+    genMsg.textContent = text;
+    genMsg.className = 'gen-msg ' + (bad ? 'bad' : 'ok');
+  }
+
+  genBtn.addEventListener('click', function () {
+    var files = document.getElementById('gen-files').files;
+    if (!files.length) { setGenMsg('Choose at least one notes file first.', true); return; }
+    var data = new FormData();
+    for (var i = 0; i < files.length; i++) { data.append('files', files[i]); }
+    data.append('count', document.getElementById('gen-count').value);
+    data.append('marks', document.getElementById('gen-marks').value);
+    genBtn.disabled = true;
+    genProgress.classList.remove('hidden');
+    setGenMsg('Gemini is reading your notes and writing questions. This can take up to a minute...', false);
+
+    fetch(genBtn.dataset.url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'X-CSRFToken': csrf, 'Accept': 'application/json' }, body: data
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { setGenMsg(res.body.error || 'Could not generate questions.', true); return; }
+        if (questions.length === 1 && isBlank(questions[0])) { questions.length = 0; }   // replace the empty starter question
+        res.body.questions.forEach(function (q) { questions.push(q); });
+        render();
+        setGenMsg(res.body.questions.length + ' questions were added below. Please read and fix them before saving.', false);
+      })
+      .catch(function () { setGenMsg('Could not reach the server. Check your connection and try again.', true); })
+      .then(function () { genBtn.disabled = false; genProgress.classList.add('hidden'); });
+  });
+
+  // pressing Enter in these small fields must not submit the whole quiz form
+  ['gen-count', 'gen-marks'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); } });
+  });
+
+  document.getElementById('add-question').addEventListener('click', function () {
+    questions.push(blank());
+    render();
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  document.getElementById('exam-form').addEventListener('submit', sync);
+
+  render();
+})();
+</script>
+{% endblock %}

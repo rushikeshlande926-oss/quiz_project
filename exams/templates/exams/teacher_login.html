@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Teacher Login{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="card">
+    <h1>Teacher login</h1>
+    <p class="muted">Sign in to create live quizzes and monitor your students.</p>
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+      {{ form.as_p }}
+      <button class="btn btn-block" type="submit">Login as teacher</button>
+    </form>
+    <p class="muted small center">New teacher? <a href="{% url 'teacher_register' %}">Create a teacher account</a><br>
+    Student? <a href="{% url 'login' %}">Use the student login</a></p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Create Quiz{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h1>Create a quiz from your notes</h1>
+  <p class="muted">Upload typed, scanned or handwritten notes. Gemini reads them and writes the questions.</p>
+
+  <form method="post" enctype="multipart/form-data" class="card" id="upload-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="field">
+      {{ form.title.label_tag }}
+      {{ form.title }}
+      {{ form.title.errors }}
+    </div>
+    <div class="field">
+      {{ form.files.label_tag }}
+      {{ form.files }}
+      <div class="hint">PDF, PNG, JPG, WEBP or TXT. You can select up to 10 files (for example, photos of several pages).</div>
+      {{ form.files.errors }}
+    </div>
+    <div class="field">
+      {{ form.question_type.label_tag }}
+      {{ form.question_type }}
+      {{ form.question_type.errors }}
+    </div>
+    <div class="field">
+      {{ form.num_questions.label_tag }}
+      {{ form.num_questions }}
+      {{ form.num_questions.errors }}
+    </div>
+    <div class="field check">
+      {{ form.is_private }}
+      <label for="{{ form.is_private.id_for_label }}">{{ form.is_private.label }}</label>
+    </div>
+    <button class="btn btn-block" type="submit" id="submit-btn">Generate Quiz</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('upload-form').addEventListener('submit', function () {
+    var btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading your notes...';
+  });
+</script>
+{% endblock %}

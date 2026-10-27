@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Reconduct Test{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Reconduct a test</h1>
+    <p class="muted" style="margin:0">Pick a quiz you have already conducted. Its questions are reused in a brand-new session. The old session, answers and marks stay exactly as they are.</p>
+  </div>
+  <a class="btn btn-ghost" href="{% url 'teacher_dashboard' %}">Back to dashboard</a>
+</div>
+<div class="grid">
+  {% for e in exams %}
+    <div class="card quiz-card">
+      <div>
+        <h3>{{ e.title }}</h3>
+        <div class="muted small">{{ e.num_questions }} questions &middot; {{ e.duration_minutes }} min &middot; {{ e.num_students }} students</div>
+      </div>
+      <div class="badges">
+        <span class="sbadge sb-{{ e.status }}">{{ e.get_status_display }}</span>
+        <span class="badge badge-muted">{{ e.session_label }}</span>
+      </div>
+      <div class="actions"><a class="btn btn-sm" href="{% url 'exam_reconduct' e.id %}">Reconduct this test</a></div>
+    </div>
+  {% empty %}
+    <div class="card" style="grid-column: 1 / -1;"><h3>Nothing to reconduct yet</h3>
+      <p class="muted">Start a quiz first. After it has run, you can conduct it again from here.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Reconduct {{ source.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Reconduct: {{ source.title }}</h1>
+    <div class="muted small">This will be <b>session {{ next_session }}</b>. It reuses {{ question_count }} questions ({{ total_marks }} marks). A fresh test code is created when the session starts.</div>
+  </div>
+  <a class="btn btn-ghost" href="{% url 'exam_monitor' source.id %}">Cancel</a>
+</div>
+<div class="info-box" style="margin-bottom:16px">
+  The earlier session ({{ source.session_label }}) is not changed. Its students, answers, marks, attempt history and code stay as they are. Students can only open the session whose code they were given.
+</div>
+<form method="post">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="card section">
+    <h2>Session details</h2>
+    <div class="field">{{ form.title.label_tag }}{{ form.title }}{{ form.title.errors }}</div>
+    <div class="field">{{ form.description.label_tag }}{{ form.description }}{{ form.description.errors }}</div>
+    <div class="form-grid">
+      <div class="field">{{ form.duration_minutes.label_tag }}{{ form.duration_minutes }}{{ form.duration_minutes.errors }}</div>
+      <div class="field">{{ form.scheduled_start.label_tag }}{{ form.scheduled_start }}{{ form.scheduled_start.errors }}</div>
+      <div class="field">{{ form.deadline.label_tag }}{{ form.deadline }}{{ form.deadline.errors }}</div>
+    </div>
+    <div class="field check">{{ form.start_now }}<label for="{{ form.start_now.id_for_label }}">{{ form.start_now.label }}</label></div>
+    {{ form.start_now.errors }}
+  </div>
+  <div class="card section">
+    <h2>Test code</h2>
+    <div class="form-grid">
+      <div class="field">{{ form.code_validity_minutes.label_tag }}{{ form.code_validity_minutes }}{{ form.code_validity_minutes.errors }}</div>
+    </div>
+    <div class="field radio-group">{{ form.on_code_expiry.label_tag }}{{ form.on_code_expiry }}{{ form.on_code_expiry.errors }}</div>
+  </div>
+  <div class="card section">
+    <h2>Anti-cheating and results</h2>
+    <div class="form-grid">
+      <div class="field">{{ form.max_warnings.label_tag }}{{ form.max_warnings }}{{ form.max_warnings.errors }}</div>
+    </div>
+    <div class="field radio-group">{{ form.on_violation_limit.label_tag }}{{ form.on_violation_limit }}{{ form.on_violation_limit.errors }}</div>
+    <div class="field check">{{ form.auto_submit_on_expiry }}<label for="{{ form.auto_submit_on_expiry.id_for_label }}">{{ form.auto_submit_on_expiry.label }}</label></div>
+    <div class="field check">{{ form.show_score }}<label for="{{ form.show_score.id_for_label }}">{{ form.show_score.label }}</label></div>
+  </div>
+  <div class="card section">
+    <h2>Exam environment</h2>
+    <div class="field check">{{ form.shuffle_questions }}<label for="{{ form.shuffle_questions.id_for_label }}">{{ form.shuffle_questions.label }}</label></div>
+    <div class="field check">{{ form.shuffle_options }}<label for="{{ form.shuffle_options.id_for_label }}">{{ form.shuffle_options.label }}</label></div>
+    <div class="field check">{{ form.require_fullscreen }}<label for="{{ form.require_fullscreen.id_for_label }}">{{ form.require_fullscreen.label }}</label></div>
+    <div class="field check">{{ form.block_clipboard }}<label for="{{ form.block_clipboard.id_for_label }}">{{ form.block_clipboard.label }}</label></div>
+  </div>
+  <button class="btn" type="submit">Create new session</button>
+</form>
+{% endblock %}

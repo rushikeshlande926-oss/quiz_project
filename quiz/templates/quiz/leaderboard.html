@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Leaderboard</h1>
+    <p class="muted" style="margin:0">{{ quiz.title }} &middot; ranked by score, then speed</p>
+  </div>
+  <div class="button-row">
+    <a class="btn btn-ghost" href="{% url 'export_leaderboard' quiz.id %}">Export CSV</a>
+    {% if is_creator %}<a class="btn btn-ghost" href="{% url 'analytics' quiz.id %}">Analytics</a>{% endif %}
+    <a class="btn btn-ghost" href="{% url 'quiz_list' %}">Back to quizzes</a>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <tr><th>Rank</th><th>Student</th><th>Score</th><th>Time</th></tr>
+    {% for a in attempts %}
+      <tr class="{% if a.user_id == user.id %}me{% endif %}">
+        <td><span class="rank rank-{{ forloop.counter }}">{{ forloop.counter }}</span></td>
+        <td>{{ a.user.username }}{% if a.user_id == user.id %} <span class="muted small">(you)</span>{% endif %}</td>
+        <td>{{ a.score }} / {{ a.total }}</td>
+        <td>{{ a.time_display }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="muted">No attempts yet. Be the first!</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

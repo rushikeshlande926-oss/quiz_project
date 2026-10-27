@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}My Exams{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>My Exams</h1>
+    <p class="muted" style="margin:0">Your exams, scores and progress in one place.</p>
+  </div>
+  <a class="btn" href="{% url 'exam_join' %}">Join an exam</a>
+</div>
+
+<div class="chips">
+  <div class="chip">Exams taken<b>{{ stats.taken }}</b></div>
+  <div class="chip">In progress<b>{{ stats.in_progress }}</b></div>
+  <div class="chip">Average score<b>{% if stats.average is not None %}{{ stats.average }}%{% else %}-{% endif %}</b></div>
+  <div class="chip">Best score<b>{% if stats.best is not None %}{{ stats.best }}%{% else %}-{% endif %}</b></div>
+</div>
+
+{% if stats.hidden %}
+  <div class="info-box" style="margin-bottom:16px">
+    Your teacher has not published the score for {{ stats.hidden }} submitted exam{{ stats.hidden|pluralize }}. Those results will not appear in your average.
+  </div>
+{% endif %}
+
+{% if in_progress %}
+  <h2>In progress</h2>
+  {% for r in in_progress %}
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center">
+        <div>
+          <b>{{ r.exam.title }}</b>
+          {% if r.exam.is_reconducted %}<span class="badge badge-purple">Re-test</span>{% endif %}
+          <div class="muted small">
+            {% if r.attempt.status == "joined" %}You joined but have not started yet.{% else %}{{ r.answered }} of {{ r.questions }} questions answered.{% endif %}
+          </div>
+        </div>
+        <a class="btn btn-sm" href="{% url 'attempt_open' r.attempt.id %}">{% if r.attempt.status == "joined" %}Open{% else %}Continue{% endif %}</a>
+      </div>
+      {% if r.attempt.status == "active" %}<div class="progress-line"><div style="width: {{ r.answered_percent }}%"></div></div>{% endif %}
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% if trend %}
+  <h2>Score trend</h2>
+  <div class="card">
+    <div class="trend">
+      {% for t in trend %}
+        <div class="col" title="{{ t.title }}">
+          <div class="val">{{ t.percent }}%</div>
+          <div class="barwrap"><div class="bar {% if t.percent < 40 %}low{% elif t.percent < 60 %}mid{% endif %}" style="height: {{ t.percent }}%"></div></div>
+          <div class="lbl">{{ t.date|date:"d M" }}</div>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="muted small" style="margin-top:8px">Oldest to newest. Only exams whose scores your teacher published are shown.</div>
+  </div>
+{% endif %}
+
+<h2>Past exams</h2>
+{% if past %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Exam</th><th>Status</th><th>Score</th><th>Warnings</th></tr></thead>
+      <tbody>
+        {% for r in past %}
+          <tr>
+            <td>{{ r.attempt.created_at|date:"d M Y" }}</td>
+            <td>{{ r.exam.title }}{% if r.exam.is_reconducted %} <span class="badge badge-purple">Re-test</span>{% endif %}</td>
+            <td><span class="sbadge sb-{{ r.attempt.status_key }}">{{ r.attempt.display_status }}</span></td>
+            <td>
+              {% if r.visible %}
+                {{ r.attempt.score }} / {{ r.attempt.total_marks }} ({{ r.percent }}%)
+                <div class="perf-bar"><div class="{% if r.percent < 40 %}low{% endif %}" style="width: {{ r.percent }}%"></div></div>
+              {% elif r.attempt.status == "submitted" %}<span class="muted small">Not published yet</span>
+              {% else %}-{% endif %}
+            </td>
+            <td>{{ r.attempt.warning_count }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="card"><p class="muted" style="margin:0">You have not taken any exam yet. Use <b>Join an exam</b> and enter the test code from your teacher.</p></div>
+{% endif %}
+
+{% if practice %}
+  <h2>Practice quizzes</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Quiz</th><th>Score</th><th></th></tr></thead>
+      <tbody>
+        {% for a in practice %}
+          <tr>
+            <td>{{ a.created_at|date:"d M Y" }}</td>
+            <td>{{ a.quiz.title }}</td>
+            <td>{{ a.score }} / {{ a.total }} ({{ a.percent }}%)</td>
+            <td><a class="btn btn-ghost btn-sm" href="{% url 'result' a.quiz_id %}">Review</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

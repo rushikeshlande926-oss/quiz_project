@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ exam.title }}</h1>
+    {% if exam.is_reconducted %}<div class="badges" style="margin-bottom:4px"><span class="badge badge-purple">{{ exam.session_label }}</span></div>{% endif %}
+    <div class="muted small">
+      {{ question_count }} questions &middot; {{ total_marks }} marks &middot; {{ exam.duration_minutes }} min per student
+      {% if exam.scheduled_start %}&middot; scheduled {{ exam.scheduled_start|date:"d M Y, H:i" }}{% endif %}
+      {% if exam.deadline %}&middot; deadline {{ exam.deadline|date:"d M Y, H:i" }}{% endif %}
+    </div>
+  </div>
+  <div style="text-align:right">
+    <span class="sbadge sb-{{ exam.status }}" id="exam-status">{{ exam.get_status_display }}</span>
+    <div class="muted small" id="exam-clock" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<div class="toolbar" style="margin-bottom:16px">
+  {% if exam.status == "draft" %}
+    <form method="post" action="{% url 'exam_start' exam.id %}">{% csrf_token %}<button class="btn" type="submit">Start quiz now</button></form>
+    <a class="btn btn-ghost" href="{% url 'exam_edit' exam.id %}">Edit</a>
+    <form method="post" action="{% url 'exam_delete' exam.id %}" onsubmit="return confirm('Delete this quiz permanently?');">{% csrf_token %}<button class="btn btn-ghost" type="submit">Delete</button></form>
+  {% elif exam.status == "live" %}
+    {% if exam.is_paused %}
+      <form method="post" action="{% url 'exam_resume' exam.id %}">{% csrf_token %}<button class="btn" type="submit">Resume quiz for everyone</button></form>
+    {% else %}
+      <form method="post" action="{% url 'exam_pause' exam.id %}" onsubmit="return confirm('Pause the quiz for ALL students? Their timers freeze and nobody can answer until you resume. Nobody loses time.');">{% csrf_token %}<button class="btn btn-ghost" type="submit">Pause for everyone</button></form>
+    {% endif %}
+    <button type="button" class="btn btn-ghost" id="addtime-all-btn" data-url="{% url 'exam_add_time' exam.id %}">Add time for everyone</button>
+    <form method="post" action="{% url 'exam_close' exam.id %}" onsubmit="return confirm('Close the quiz for ALL students now? Saved answers will be handled as set in the quiz settings.');">{% csrf_token %}<button class="btn btn-danger" type="submit">Close quiz for everyone</button></form>
+  {% endif %}
+  {% if exam.status != "draft" %}<a class="btn btn-ghost" href="{% url 'exam_results_csv' exam.id %}">Export results (CSV)</a>{% endif %}
+  {% if exam.status != "draft" %}<a class="btn btn-ghost" href="{% url 'exam_reconduct' exam.id %}">Reconduct Test</a>{% endif %}
+  <a class="btn btn-ghost" href="{% url 'teacher_dashboard' %}">All quizzes</a>
+</div>
+
+{% if exam.is_paused %}
+  <div class="info-box warn" style="margin-bottom:16px"><b>The quiz is paused for everyone.</b> All timers are frozen and students cannot answer. Press <b>Resume quiz for everyone</b> when you are ready: the closing time moves later by the length of the pause.</div>
+{% endif %}
+
+{% if sessions %}
+  <div class="card" style="margin-bottom:16px">
+    <div class="muted small" style="margin-bottom:8px">Sessions of this test (each has its own code, students and results)</div>
+    <div class="toolbar">
+      {% for x in sessions %}
+        <a class="btn btn-sm {% if x.id != exam.id %}btn-ghost{% endif %}" href="{% url 'exam_monitor' x.id %}">{{ x.session_label }} &middot; {{ x.get_status_display }}</a>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% if exam.status == "draft" %}
+  <div class="card" style="margin-bottom:16px">
+    <h3>Ready to start?</h3>
+    <p class="muted" style="margin:0">When you start the quiz, a 6-character test code appears here. Share it with your students. They enter it on the <b>Join Exam</b> page ({{ join_url }}).</p>
+  </div>
+{% else %}
+  <div class="card code-panel" id="code-panel">
+    <div>
+      <div class="muted small">Test code <span id="code-state"></span></div>
+      <div class="code-big" id="code-value">------</div>
+      <div class="muted small" id="code-expiry"></div>
+    </div>
+    <div>
+      <div class="muted small" style="margin-bottom:8px">Students join at <b>{{ join_url }}</b></div>
+      {% if exam.status == "live" %}
+        <div class="toolbar">
+          <form method="post" action="{% url 'code_regenerate' exam.id %}">{% csrf_token %}<button class="btn btn-sm" type="submit">Regenerate code</button></form>
+          <form method="post" action="{% url 'code_invalidate' exam.id %}" onsubmit="return confirm('Disable the code? Nobody new can join until you regenerate it.');">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit">Disable code</button></form>
+        </div>
+        <div class="hint">Students already inside are never affected by code changes.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="info-box" style="margin-bottom:16px">
+  <b>About tab-switch detection:</b> it can tell when a student's quiz tab is hidden (tab switch, minimized browser, locked screen).
+  It cannot see other apps, other devices, a phone or split-screen use, so it does not catch every form of cheating. Use warnings as a signal, not as proof.
+  Fullscreen and copy/paste blocking are browser-based too and a determined student can get around them. This page refreshes itself every 3 seconds, so alerts can arrive up to about 3 seconds late.
+</div>
+
+<div class="chips" id="chips"></div>
+
+<div class="two-col">
+  <div>
+    <div class="page-head" style="margin-bottom:10px">
+      <h2 style="margin:0">Students</h2>
+      <span class="muted small" id="conn">Connecting...</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Roll</th><th>Name</th><th>Status</th><th>Warnings</th><th>Answered</th><th>Time left</th><th>Score</th><th></th></tr></thead>
+        <tbody id="students-body"></tbody>
+      </table>
+    </div>
+    <p class="muted small" id="no-students" style="margin-top:10px">No students have joined yet.</p>
+  </div>
+  <div>
+    <div class="page-head" style="margin-bottom:10px">
+      <h2 style="margin:0">Live notifications</h2>
+      <label class="small" style="margin:0"><input type="checkbox" id="sound-on" checked style="width:auto"> Sound</label>
+    </div>
+    <div class="card feed" id="feed"><div class="muted small" id="feed-empty">Nothing yet.</div></div>
+  </div>
+</div>
+
+<div class="toast-box" id="toasts"></div>
+
+<div class="modal-backdrop hidden" id="terminate-modal">
+  <div class="modal bad">
+    <h2 id="terminate-title">Terminate quiz</h2>
+    <p class="muted small">The student can no longer answer or submit. Their saved answers and warning history are kept for you to review. Other students are not affected.</p>
+    <form method="post" id="terminate-form" action="">
+      {% csrf_token %}
+      <label for="terminate-reason">Reason (the student will see it)</label>
+      <textarea name="reason" id="terminate-reason" rows="3" maxlength="300" placeholder="e.g. Repeated tab switching"></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="terminate-cancel">Cancel</button>
+        <button type="submit" class="btn btn-danger">Terminate</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="modal-backdrop hidden" id="restart-modal">
+  <div class="modal warn">
+    <h2 id="restart-title">Restart quiz</h2>
+    <p class="muted small">This student's answers, warnings and timer are reset and they start from question 1 with a full timer (never beyond the quiz end time). Their current attempt and marks are <b>saved in their attempt history</b>, not deleted. Other students are not affected, and the student is told their quiz was restarted.</p>
+    <form method="post" id="restart-form" action="">
+      {% csrf_token %}
+      <label for="restart-note">Note for your records (optional)</label>
+      <textarea name="note" id="restart-note" rows="2" maxlength="300" placeholder="e.g. Network failure during the quiz"></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="restart-cancel">Cancel</button>
+        <button type="submit" class="btn">Yes, restart</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="modal-backdrop hidden" id="addtime-modal">
+  <div class="modal">
+    <h2 id="addtime-title">Add time</h2>
+    <p class="muted small" id="addtime-hint"></p>
+    <form method="post" id="addtime-form" action="">
+      {% csrf_token %}
+      <label for="addtime-minutes">Extra minutes</label>
+      <input type="number" name="minutes" id="addtime-minutes" min="1" max="240" value="5">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="addtime-cancel">Cancel</button>
+        <button type="submit" class="btn">Add time</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{ config|json_script:"monitor-config" }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var cfg = JSON.parse(document.getElementById('monitor-config').textContent);
+  var lastId = 0, firstPoll = true;
+  var codeExpiresAt = null;
+  var examEndsAt = null, startsAt = null;
+  var paused = false, windowOver = false;
+  var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $('exam-status'), clockEl = $('exam-clock'), connEl = $('conn');
+  var bodyEl = $('students-body'), noStudents = $('no-students'), chipsEl = $('chips');
+  var feedEl = $('feed'), toastsEl = $('toasts');
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = text; }   // textContent only: names are untrusted
+    return e;
+  }
+
+  function fmt(sec) {
+    if (sec === null || sec === undefined) { return '-'; }
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    var mm = (m < 10 ? '0' : '') + m, ss = (s < 10 ? '0' : '') + s;
+    return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+  }
+
+  // ---------- sound + toasts ----------
+  function beep() {
+    if (!$('sound-on').checked) { return; }
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880; gain.gain.value = 0.05;
+      osc.start(); osc.stop(ctx.currentTime + 0.15);
+    } catch (e) { /* sound is optional */ }
+  }
+
+  function toast(e) {
+    var t = el('div', 'toast' + (e.kind === 'flagged' ? ' danger' : ''));
+    t.appendChild(el('strong', '', e.name + ' (Roll ' + e.roll + ')'));
+    t.appendChild(el('div', '', e.label));
+    var meta = 'Quiz: ' + e.quiz + ' | ' + e.time;
+    if (e.warnings) { meta += ' | Warning count: ' + e.warnings; }
+    t.appendChild(el('div', 'muted small', meta));
+    t.addEventListener('click', function () { t.remove(); });
+    toastsEl.appendChild(t);
+    setTimeout(function () { t.remove(); }, 9000);
+    beep();
+  }
+
+  // ---------- feed ----------
+  function addFeed(e) {
+    var empty = $('feed-empty');
+    if (empty) { empty.remove(); }
+    var cls = 'feed-item';
+    if (e.kind === 'tab_switch' || e.kind === 'fullscreen_exit') { cls += ' warnk'; }
+    if (e.kind === 'flagged' || e.kind === 'terminated') { cls += ' bad'; }
+    if (e.kind === 'restarted') { cls += ' warnk'; }
+    var item = el('div', cls);
+    item.appendChild(el('div', '', e.name + ' (Roll ' + e.roll + ')'));
+    var line = e.label;
+    if (e.warnings) { line += ' | warning ' + e.warnings; }
+    if (e.away) { line += ' | away ' + e.away + 's'; }
+    item.appendChild(el('div', 'muted small', line));
+    if (e.detail) { item.appendChild(el('div', 'muted small', e.detail)); }
+    item.appendChild(el('div', 'muted small', e.time + ' | ' + e.quiz));
+    feedEl.insertBefore(item, feedEl.firstChild);
+  }
+
+  // ---------- students table ----------
+  function openTerminate(s) {
+    $('terminate-title').textContent = (s.status_key === 'joined' ? 'Remove ' : 'Terminate quiz for ') + s.name + ' (Roll ' + s.roll + ')';
+    $('terminate-form').action = s.terminate_url;
+    $('terminate-reason').value = '';
+    $('terminate-modal').classList.remove('hidden');
+  }
+
+  function openRestart(s) {
+    $('restart-title').textContent = 'Restart quiz for ' + s.name + ' (Roll ' + s.roll + ')?';
+    $('restart-form').action = s.restart_url;
+    $('restart-note').value = '';
+    $('restart-modal').classList.remove('hidden');
+  }
+
+  function openAddTime(title, url, hint) {
+    $('addtime-title').textContent = title;
+    $('addtime-form').action = url;
+    $('addtime-hint').textContent = hint;
+    $('addtime-minutes').value = 5;
+    $('addtime-modal').classList.remove('hidden');
+  }
+
+  // a small button that sends a POST (used for Pause / Resume)
+  function postButton(label, url, cls, confirmText) {
+    var f = el('form');
+    f.method = 'post'; f.action = url; f.style.display = 'inline';
+    var t = document.createElement('input');
+    t.type = 'hidden'; t.name = 'csrfmiddlewaretoken'; t.value = csrf;
+    f.appendChild(t);
+    var b = el('button', cls, label);
+    b.type = 'submit';
+    f.appendChild(b);
+    if (confirmText) { f.addEventListener('submit', function (ev) { if (!confirm(confirmText)) { ev.preventDefault(); } }); }
+    return f;
+  }
+
+  function renderStudents(list) {
+    bodyEl.innerHTML = '';
+    noStudents.classList.toggle('hidden', list.length > 0);
+    list.forEach(function (s) {
+      var tr = el('tr');
+      tr.appendChild(el('td', '', s.roll));
+      var nameTd = el('td');
+      nameTd.appendChild(el('span', 'dot-online' + (s.online ? '' : ' off')));
+      nameTd.appendChild(document.createTextNode(s.name));
+      tr.appendChild(nameTd);
+      var st = el('td'); st.appendChild(el('span', 'sbadge sb-' + s.status_key, s.status_label)); tr.appendChild(st);
+      tr.appendChild(el('td', '', s.warnings + (s.flagged ? ' (flagged)' : '')));
+      tr.appendChild(el('td', '', s.answered + '/' + s.total_questions));
+      tr.appendChild(el('td', '', s.remaining === null ? '-' : fmt(s.remaining)));
+      tr.appendChild(el('td', '', s.score || '-'));
+      var act = el('td');
+      var wrap = el('div', 'row-actions');
+      var view = el('a', 'btn btn-ghost btn-sm', 'View'); view.href = s.detail_url; wrap.appendChild(view);
+      if (s.can_pause) { wrap.appendChild(postButton('Pause', s.pause_url, 'btn btn-ghost btn-sm')); }
+      if (s.can_resume) { wrap.appendChild(postButton('Resume', s.resume_url, 'btn btn-sm')); }
+      if (s.can_add_time) {
+        var t = el('button', 'btn btn-ghost btn-sm', 'Add time');
+        t.type = 'button';
+        t.addEventListener('click', function () {
+          openAddTime('Add time for ' + s.name + ' (Roll ' + s.roll + ')', s.add_time_url,
+            'Only this student gets the extra minutes. It can go past the quiz closing time. Other students are not affected.');
+        });
+        wrap.appendChild(t);
+      }
+      if (s.can_restart) {
+        var r = el('button', 'btn btn-ghost btn-sm', 'Restart Quiz');
+        r.type = 'button';
+        r.addEventListener('click', function () { openRestart(s); });
+        wrap.appendChild(r);
+      }
+      if (s.can_terminate) {
+        var b = el('button', 'btn btn-danger btn-sm', s.status_key === 'joined' ? 'Remove' : 'Terminate');
+        b.type = 'button';
+        b.addEventListener('click', function () { openTerminate(s); });
+        wrap.appendChild(b);
+      }
+      act.appendChild(wrap);
+      tr.appendChild(act);
+      bodyEl.appendChild(tr);
+    });
+  }
+
+  function renderChips(list) {
+    var c = { joined: 0, active: 0, paused: 0, submitted: 0, terminated: 0, flagged: 0 };
+    list.forEach(function (s) {
+      if (s.status_key === 'joined') { c.joined++; }
+      if (s.status_key === 'active' || s.status_key === 'warning' || s.status_key === 'flagged' || s.status_key === 'paused') { c.active++; }
+      if (s.status_key === 'paused') { c.paused++; }
+      if (s.status_key === 'submitted') { c.submitted++; }
+      if (s.status_key === 'terminated') { c.terminated++; }
+      if (s.flagged) { c.flagged++; }
+    });
+    chipsEl.innerHTML = '';
+    [['Total', list.length], ['Waiting', c.joined], ['In progress', c.active], ['Paused', c.paused],
+     ['Submitted', c.submitted], ['Flagged', c.flagged], ['Terminated', c.terminated]].forEach(function (p) {
+      var chip = el('div', 'chip', p[0]);
+      chip.appendChild(el('b', '', String(p[1])));
+      chipsEl.appendChild(chip);
+    });
+  }
+
+  // ---------- test code ----------
+  var CODE_TEXT = {
+    active: 'Active', expired: 'Expired', replaced: 'Replaced', invalidated: 'Disabled by you',
+    quiz_closed: 'Quiz closed', none: ''
+  };
+  function renderCode(code) {
+    var v = $('code-value');
+    if (!v) { return; }
+    v.textContent = code.value || '------';
+    v.classList.toggle('dead', code.state !== 'active');
+    $('code-state').textContent = code.state === 'active' ? '' : '(' + (CODE_TEXT[code.state] || code.state) + ')';
+    codeExpiresAt = (code.state === 'active' && code.expires_in !== null) ? Date.now() + code.expires_in * 1000 : null;
+    if (code.state === 'active' && code.expires_in === null) { $('code-expiry').textContent = 'This code does not expire.'; }
+    else if (code.state !== 'active') { $('code-expiry').textContent = code.state === 'expired' ? 'No new students can join with this code.' : 'Nobody can join with this code.'; }
+  }
+
+  function renderClock() {
+    var now = Date.now();
+    if (codeExpiresAt !== null && $('code-expiry')) {
+      $('code-expiry').textContent = 'Expires in ' + fmt(Math.max(0, Math.round((codeExpiresAt - now) / 1000)));
+    }
+    if (windowOver) { clockEl.textContent = 'Closing time passed. Waiting for students who were given extra time.'; }
+    else if (paused && examEndsAt !== null) { clockEl.textContent = 'Paused | closes in ' + fmt(Math.max(0, Math.round((examEndsAt - now) / 1000))) + ' (frozen)'; }
+    else if (examEndsAt !== null) { clockEl.textContent = 'Quiz closes in ' + fmt(Math.max(0, Math.round((examEndsAt - now) / 1000))); }
+    else if (startsAt !== null) { clockEl.textContent = 'Starts in ' + fmt(Math.max(0, Math.round((startsAt - now) / 1000))); }
+  }
+
+  function render(d) {
+    if (d.exam.status !== cfg.status || d.exam.paused !== cfg.paused) { window.location.reload(); return; }  // auto start / auto close / pause changed
+    paused = d.exam.paused;
+    windowOver = d.exam.window_over;
+    statusEl.textContent = d.exam.status_label;
+    statusEl.className = 'sbadge sb-' + d.exam.status;
+    examEndsAt = d.exam.remaining !== null ? Date.now() + d.exam.remaining * 1000 : null;
+    startsAt = d.exam.starts_in !== null ? Date.now() + d.exam.starts_in * 1000 : null;
+    if (d.exam.status === 'closed') {
+      clockEl.textContent = d.exam.close_reason === 'teacher' ? 'Closed by you' : 'Closed: time expired';
+    } else if (examEndsAt === null && startsAt === null) { clockEl.textContent = ''; }
+    if (paused && examEndsAt !== null) { examEndsAt = Date.now() + d.exam.remaining * 1000; }
+
+    renderCode(d.code);
+    renderStudents(d.students);
+    renderChips(d.students);
+
+    d.events.forEach(function (e) {
+      addFeed(e);
+      if (!firstPoll && (e.kind === 'tab_switch' || e.kind === 'fullscreen_exit' || e.kind === 'flagged')) { toast(e); }
+    });
+    lastId = d.last_event_id;
+    firstPoll = false;
+    renderClock();
+  }
+
+  function poll() {
+    fetch(cfg.liveUrl + '?since=' + lastId, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { if (!r.ok) { throw new Error('bad status'); } return r.json(); })
+      .then(function (d) { render(d); connEl.textContent = 'Live (updates every 3 s)'; })
+      .catch(function () { connEl.textContent = 'Connection problem. Retrying...'; })
+      .then(function () { setTimeout(poll, 3000); });
+  }
+
+  $('restart-cancel').addEventListener('click', function () { $('restart-modal').classList.add('hidden'); });
+  $('addtime-cancel').addEventListener('click', function () { $('addtime-modal').classList.add('hidden'); });
+  var addAll = $('addtime-all-btn');
+  if (addAll) {
+    addAll.addEventListener('click', function () {
+      openAddTime('Add time for everyone', addAll.dataset.url,
+        'Every student who is taking the quiz right now gets these extra minutes, and the quiz closing time moves later by the same amount.');
+    });
+  }
+  $('terminate-cancel').addEventListener('click', function () { $('terminate-modal').classList.add('hidden'); });
+  setInterval(renderClock, 1000);
+  poll();
+})();
+</script>
+{% endblock %}

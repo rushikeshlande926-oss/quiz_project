@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Creating quiz{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="card">
+    <h1 id="job-title">Creating your quiz</h1>
+    <p class="muted" id="job-message" style="margin:0">{{ job.message }}</p>
+
+    <div id="progress-area">
+      <div class="bar"><div id="bar-fill"></div></div>
+      <div class="bar-meta">
+        <span id="pct">0%</span>
+        <span class="muted small">{{ job.title }}</span>
+      </div>
+      <ul class="steps">
+        <li class="step" data-at="20"><span class="dot"></span>Reading your notes</li>
+        <li class="step" data-at="90"><span class="dot"></span>Gemini is reading notes and writing questions</li>
+        <li class="step" data-at="100"><span class="dot"></span>Saving your quiz</li>
+      </ul>
+    </div>
+
+    <div id="done-box" class="box hidden" style="flex-direction:column; align-items:flex-start;">
+      <div id="code-box" class="hidden">
+        <div class="muted small">Private quiz. Share this join code with your students:</div>
+        <div class="code" id="code-text"></div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn" id="start-btn" href="#">Start Quiz</a>
+        <a class="btn btn-ghost" href="{% url 'quiz_list' %}">All Quizzes</a>
+      </div>
+    </div>
+
+    <div id="error-box" class="box hidden" style="flex-direction:column; align-items:flex-start;">
+      <p class="bad" id="error-text" style="margin:0"></p>
+      <a class="btn" href="{% url 'upload_notes' %}">Try again</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var statusUrl = "{% url 'job_status' job.id %}";
+  var serverProgress = {{ job.progress }};
+  var status = "{{ job.status }}";
+  var shown = 3;
+
+  var bar = document.getElementById('bar-fill');
+  var pct = document.getElementById('pct');
+  var msg = document.getElementById('job-message');
+  var title = document.getElementById('job-title');
+  var doneBox = document.getElementById('done-box');
+  var errorBox = document.getElementById('error-box');
+  var startBtn = document.getElementById('start-btn');
+  var progressArea = document.getElementById('progress-area');
+
+  function setSteps(p) {
+    var activeSet = false;
+    document.querySelectorAll('.step').forEach(function (s) {
+      var at = Number(s.dataset.at);
+      s.classList.remove('done', 'active');
+      if (p >= at) { s.classList.add('done'); }
+      else if (!activeSet) { s.classList.add('active'); activeSet = true; }
+    });
+  }
+
+  // Moves the bar smoothly. While Gemini is thinking it creeps slowly towards 85%.
+  function animate() {
+    if (status === 'failed') { return; }
+    var target = serverProgress;
+    var speed = 0.15;
+    if (status === 'working' && serverProgress < 90) { target = 85; speed = 0.005; }
+    shown += (target - shown) * speed;
+    if (status === 'done' && shown > 99.5) { shown = 100; }
+    bar.style.width = shown + '%';
+    pct.textContent = Math.round(shown) + '%';
+    if (status === 'done' && shown >= 100) {
+      title.textContent = 'Quiz ready!';
+      doneBox.classList.remove('hidden');
+      return;
+    }
+    setTimeout(animate, 50);
+  }
+
+  function showError(text) {
+    progressArea.classList.add('hidden');
+    title.textContent = 'Could not create the quiz';
+    document.getElementById('error-text').textContent = text || 'Unknown error.';
+    errorBox.classList.remove('hidden');
+  }
+
+  function poll() {
+    fetch(statusUrl, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        serverProgress = d.progress;
+        status = d.status;
+        msg.textContent = d.message;
+        setSteps(serverProgress);
+        if (status === 'failed') { showError(d.error); return; }
+        if (status === 'done') {
+          startBtn.href = d.quiz_url;
+          if (d.join_code) {
+            document.getElementById('code-text').textContent = d.join_code;
+            document.getElementById('code-box').classList.remove('hidden');
+          }
+          return;
+        }
+        setTimeout(poll, 1000);
+      })
+      .catch(function () { setTimeout(poll, 2000); });
+  }
+
+  setSteps(serverProgress);
+  animate();
+  poll();
+})();
+</script>
+{% endblock %}

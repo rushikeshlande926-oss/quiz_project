@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Join Exam{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h1>Join an exam</h1>
+  <p class="muted">Enter your details and the test code your teacher gave you.</p>
+
+  {% if ongoing %}
+    <div class="card" style="margin-bottom:16px">
+      <h3>Your exams in progress</h3>
+      {% for a in ongoing %}
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--border)">
+          <span>{{ a.exam.title }}</span>
+          <a class="btn btn-sm" href="{% url 'attempt_open' a.id %}">Continue</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="field">{{ form.full_name.label_tag }}{{ form.full_name }}{{ form.full_name.errors }}</div>
+    <div class="field">{{ form.roll_number.label_tag }}{{ form.roll_number }}{{ form.roll_number.errors }}</div>
+    <div class="field">{{ form.code.label_tag }}{{ form.code }}{{ form.code.errors }}</div>
+    <button class="btn btn-block" type="submit">Join exam</button>
+  </form>
+  <p class="muted small center" style="margin-top:14px">You will see the quiz rules before the timer starts.</p>
+</div>
+{% endblock %}

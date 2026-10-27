@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Teacher Registration{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="card">
+    <h1>Create teacher account</h1>
+    <p class="muted">You need the teacher invite code to register.</p>
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn btn-block" type="submit">Create teacher account</button>
+    </form>
+    <p class="muted small center">Already registered? <a href="{% url 'teacher_login' %}">Teacher login</a></p>
+  </div>
+</div>
+{% endblock %}

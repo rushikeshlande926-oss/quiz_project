@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Quizzes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Quizzes</h1>
+    <p class="muted" style="margin:0">Join a private quiz with a code, or upload your notes to create one.</p>
+  </div>
+  <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+    <form method="post" action="{% url 'join_quiz' %}" class="join-box">
+      {% csrf_token %}
+      <input type="text" name="code" maxlength="6" placeholder="CODE" autocomplete="off" required>
+      <button class="btn btn-ghost" type="submit">Join</button>
+    </form>
+    <a class="btn" href="{% url 'upload_notes' %}">+ Create Quiz</a>
+  </div>
+</div>
+
+<div class="grid">
+  {% for quiz in quizzes %}
+    <div class="card quiz-card">
+      <div>
+        <h3>{{ quiz.title }}</h3>
+        <div class="muted small">{{ quiz.num_questions }} questions &middot; {{ quiz.num_players }} played</div>
+        <div class="muted small">by {{ quiz.created_by.username }} &middot; {{ quiz.created_at|date:"d M Y" }}</div>
+      </div>
+      <div class="badges">
+        {% if quiz.is_private %}<span class="badge badge-purple">Private</span>{% endif %}
+        {% if quiz.created_by_id == user.id %}<span class="badge badge-muted">Your quiz &middot; Code {{ quiz.join_code }}</span>{% endif %}
+        {% if quiz.my_attempt %}<span class="badge">Completed &middot; {{ quiz.my_attempt.score }}/{{ quiz.my_attempt.total }}</span>{% endif %}
+      </div>
+      <div class="actions">
+        {% if quiz.my_attempt %}
+          <a class="btn btn-sm" href="{% url 'result' quiz.id %}">My Result</a>
+        {% else %}
+          <a class="btn btn-sm" href="{% url 'take_quiz' quiz.id %}">Start Quiz</a>
+        {% endif %}
+        <a class="btn btn-ghost btn-sm" href="{% url 'leaderboard' quiz.id %}">Leaderboard</a>
+        {% if quiz.my_attempt or quiz.created_by_id == user.id %}
+          <a class="btn btn-ghost btn-sm" href="{% url 'take_quiz' quiz.id %}?practice=1">Practice</a>
+        {% endif %}
+        {% if quiz.created_by_id == user.id %}
+          <a class="btn btn-ghost btn-sm" href="{% url 'analytics' quiz.id %}">Analytics</a>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <div class="card" style="grid-column: 1 / -1;">
+      <h3>No quizzes yet</h3>
+      <p class="muted">Be the first: <a href="{% url 'upload_notes' %}">upload your notes</a> and Gemini will make a quiz.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

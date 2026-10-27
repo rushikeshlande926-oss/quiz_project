@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Result{% endblock %}
+{% block content %}
+<div class="narrow">
+  {% if attempt.is_practice %}
+    <div class="practice-banner">Practice attempt: not counted on the leaderboard.</div>
+  {% endif %}
+
+  <div class="card center">
+    <div class="muted">{{ quiz.title }}</div>
+    <div class="ring" style="--p: {{ attempt.percent }}">
+      <div class="inner">
+        <div>
+          <div class="big">{{ attempt.score }}/{{ attempt.total }}</div>
+          <div class="muted small">{{ attempt.percent }}%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      {% if attempt.is_practice %}
+        <div class="stat"><div class="muted small">Mode</div><div class="v">Practice</div></div>
+      {% else %}
+        <div class="stat"><div class="muted small">Rank</div><div class="v">#{{ rank }} <span class="muted small">of {{ players }}</span></div></div>
+      {% endif %}
+      <div class="stat"><div class="muted small">Time</div><div class="v">{{ attempt.time_display }}</div></div>
+      <div class="stat"><div class="muted small">Correct</div><div class="v">{{ attempt.score }}</div></div>
+    </div>
+
+    <div class="button-row">
+      <a class="btn" href="{% url 'leaderboard' quiz.id %}">Leaderboard</a>
+      <a class="btn btn-ghost" href="{% url 'take_quiz' quiz.id %}?practice=1">Practice again</a>
+      <a class="btn btn-ghost" href="{% url 'export_result_pdf' quiz.id %}{% if attempt.is_practice %}?attempt={{ attempt.id }}{% endif %}">Download PDF</a>
+      <a class="btn btn-ghost" href="{% url 'quiz_list' %}">All Quizzes</a>
+    </div>
+  </div>
+
+  <h2>Review your answers</h2>
+  {% for r in review %}
+    <div class="card review {% if r.is_correct %}right{% else %}wrong{% endif %}">
+      <div style="font-weight:600; margin-bottom:6px">{{ forloop.counter }}. {{ r.question }}</div>
+      <div class="small">Your answer:
+        {% if r.is_correct %}<span class="ok">{{ r.your_answer }}</span>{% else %}<span class="bad">{{ r.your_answer }}</span>{% endif %}
+      </div>
+      {% if not r.is_correct %}
+        <div class="small">Correct answer: <span class="ok">{{ r.correct_answer }}</span></div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

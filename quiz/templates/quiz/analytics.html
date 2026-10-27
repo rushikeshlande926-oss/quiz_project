@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Analytics</h1>
+    <p class="muted" style="margin:0">{{ quiz.title }}</p>
+  </div>
+  <div class="button-row">
+    <a class="btn btn-ghost" href="{% url 'export_leaderboard' quiz.id %}">Export CSV</a>
+    <a class="btn btn-ghost" href="{% url 'leaderboard' quiz.id %}">Leaderboard</a>
+  </div>
+</div>
+
+<div class="card join-card">
+  <div>
+    <div class="muted small">Join code{% if quiz.is_private %} (private quiz){% endif %}</div>
+    <div class="code">{{ quiz.join_code }}</div>
+  </div>
+  <div>
+    <div class="muted small">Share link</div>
+    <code id="join-url">{{ join_url }}</code>
+  </div>
+  <button class="btn btn-sm no-print" id="copy-btn" type="button">Copy link</button>
+</div>
+
+{% if stats %}
+  <div class="stats four">
+    <div class="stat"><div class="muted small">Participants</div><div class="v">{{ stats.players }}</div></div>
+    <div class="stat"><div class="muted small">Average score</div><div class="v">{{ stats.avg_percent }}%</div></div>
+    <div class="stat"><div class="muted small">Best score</div><div class="v">{{ stats.best }}%</div></div>
+    <div class="stat"><div class="muted small">Average time</div><div class="v">{{ stats.avg_time }}</div></div>
+  </div>
+
+  {% if hardest %}
+    <h2>Hardest question</h2>
+    <div class="card hardest">
+      <div style="font-weight:600">{{ hardest.question.text }}</div>
+      <div class="muted small" style="margin-top:6px">
+        Only {{ hardest.percent }}% answered correctly ({{ hardest.correct }} of {{ n }}).
+        Correct answer: <span class="ok">{{ hardest.question.correct_label }}</span>
+      </div>
+    </div>
+  {% endif %}
+
+  <h2>Question performance <span class="muted small">(hardest first)</span></h2>
+  <div class="card">
+    {% for p in performance %}
+      <div class="perf">
+        <div class="perf-top">
+          <span>{{ forloop.counter }}. {{ p.question.text }}</span>
+          <strong>{{ p.percent }}%</strong>
+        </div>
+        <div class="perf-bar"><div class="{% if p.percent < 40 %}low{% endif %}" style="width: {{ p.percent }}%"></div></div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h2>All participants</h2>
+  <div class="table-wrap">
+    <table>
+      <tr><th>#</th><th>Student</th><th>Score</th><th>%</th><th>Time</th></tr>
+      {% for a in attempts %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ a.user.username }}</td>
+          <td>{{ a.score }} / {{ a.total }}</td>
+          <td>{{ a.percent }}%</td>
+          <td>{{ a.time_display }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+{% else %}
+  <div class="card">
+    <h3>No results yet</h3>
+    <p class="muted" style="margin:0">Share the join code or link above. Analytics appear after the first student finishes the quiz.</p>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    var url = document.getElementById('join-url').textContent;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(function () { btn.textContent = 'Copied!'; });
+    } else {
+      window.prompt('Copy this link:', url);
+    }
+  });
+</script>
+{% endblock %}
