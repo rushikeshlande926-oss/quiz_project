@@ -15,7 +15,7 @@ Two things in one project:
 5. Set your Gemini key (only needed for the AI practice quizzes):
        set GEMINI_API_KEY=your_key_here        (Linux/Mac: export GEMINI_API_KEY=your_key_here)
 6. Optional but recommended: choose your own teacher invite code
-       set TEACHER_INVITE_CODE=my-secret-code  (default is teacher123)
+       set TEACHER_INVITE_CODE=my-secret-code
 7. Create the database tables:
        python manage.py makemigrations quiz exams
        python manage.py migrate
@@ -177,45 +177,4 @@ The whole project uses one design system: a dark charcoal dashboard with purple,
 - Login: 8 wrong passwords block that computer for 5 minutes. Teacher invite code has no default when DEBUG is off.
 - After updating run:  python manage.py makemigrations exams quiz  then  python manage.py migrate
 
-## Admin panel (v6.3)
-- Admin = a Django superuser, or any user in the "Admins" group (a superuser can make someone an admin from Panel > Users).
-- Create the first admin:  python manage.py createsuperuser   then log in at /accounts/login/ (or /teacher/login/). You land on /panel/.
-- Panel pages: Overview, Users (create, change role, block, reset password, delete), Classes, Exams (monitor, close, CSV, delete),
-  Practice quizzes (delete, hide leaderboard, public/private), Admin log (who did what), Settings (turn sign-ups on/off).
-- Admins can also open any exam monitor, student detail, restart/terminate students and open any class or private quiz.
-- Only a superuser can create or change other admins. Nobody can block or delete their own account.
-- After updating run:  python manage.py makemigrations exams quiz  then  python manage.py migrate
 
-
----
-
-## v7: new look and a more manageable admin panel
-
-### Update steps (one model change)
-    python manage.py makemigrations exams quiz
-    python manage.py migrate
-The only database change is three new fields on SiteSetting (the announcement banner). Nothing else is touched.
-
-### Look and feel
-- Deep indigo dashboard with an animated aurora background, glass sidebar and top bar, gradient accents, and the Plus Jakarta Sans font
-  (loaded from Google Fonts; if the computer is offline the system font is used instead).
-- **Light and dark theme.** The sun/moon button in the top bar (and on the login page) switches it. The choice is remembered per browser.
-- Login and registration pages are a split screen with a short product pitch.
-- Colours are still CSS variables at the top of the "v7 DESIGN LAYER" in `static/css/quizarena.css`. Change `--accent`, `--grad` etc. there.
-- The sidebar groups its links, and the Admin "Exams" link shows a pulsing count of exams that are live right now.
-
-### Admin panel (Panel menu)
-| Page | What is new |
-|---|---|
-| Overview | Clickable stat cards, sign-ups and exam-attempt charts (last 14 days), account and exam donuts, live exams right now, busiest teachers, recent activity |
-| Users | Role tabs with counts, search (name, username, email), sorting, pagination, tick rows for **bulk** block / unblock / role change / delete, row menu, CSV export |
-| User detail | Click a username: edit name and email, change role, block, reset password, delete, plus their exams, classes, attempts and admin history |
-| Classes | Filter by AI-quiz setting, search by class, teacher or code, click a code to copy it, bulk allow/block AI quizzes or delete |
-| Exams | Status tabs with counts, bulk **close** or delete, per-row close, results CSV, list CSV export |
-| Practice quizzes | Public/private tabs, bulk make public/private, show/hide leaderboard, delete |
-| Admin log | Search, pagination, CSV export |
-| Settings | Toggle switches for sign-ups and an **announcement banner** (info / warning / good news) shown on every page, with live preview |
-
-Handy details: press **/** anywhere to jump to the search box; every dangerous action asks for confirmation in a dialog;
-rows per page can be 10, 25, 50 or 100; the same safety rules as before apply (nobody can block or delete their own account,
-only a superuser can change admins).
