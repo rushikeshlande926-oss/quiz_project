@@ -1,0 +1,35 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% include "_head.html" %}
+  <title>{% block title %}QuizArena{% endblock %} - QuizArena</title>
+</head>
+<body class="auth">
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <button class="icon-btn theme-btn auth-theme" type="button" data-theme-toggle aria-label="Switch light or dark theme" title="Switch theme">
+    <span class="when-dark">{% include "components/icon.html" with name="sun" %}</span><span class="when-light">{% include "components/icon.html" with name="moon" %}</span>
+  </button>
+  <div class="auth-split">
+    <section class="auth-hero">
+      <a class="brand" href="{% url 'login' %}"><span class="brand-mark">Q</span><span class="brand-text">Quiz<b>Arena</b></span></a>
+      <h2>Learn faster.<br>Compete smarter.</h2>
+      <p>AI practice quizzes from your own notes, secure live exams and instant results, all in one place.</p>
+      <ul class="auth-points">
+        <li><span>{% include "components/icon.html" with name="sparkles" %}</span><div><b>AI quizzes</b>Upload notes, get a quiz in seconds.</div></li>
+        <li><span>{% include "components/icon.html" with name="shield" %}</span><div><b>Secure live exams</b>Timers, fullscreen and tab-switch alerts.</div></li>
+        <li><span>{% include "components/icon.html" with name="trophy" %}</span><div><b>Leaderboards</b>See how you rank against your class.</div></li>
+      </ul>
+    </section>
+    <section class="auth-panel">
+      <div class="auth-inner">
+        <div class="auth-brand-mobile"><a class="brand" href="{% url 'login' %}"><span class="brand-mark">Q</span><span class="brand-text">Quiz<b>Arena</b></span></a></div>
+        {% include "components/announcement.html" %}
+        {% include "components/messages.html" %}
+        {% block content %}{% endblock %}
+      </div>
+    </section>
+  </div>
+  <script src="{% static 'js/ui.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

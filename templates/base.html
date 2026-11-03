@@ -1,0 +1,34 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% include "_head.html" %}
+  <title>{% block title %}QuizArena{% endblock %} - QuizArena</title>
+</head>
+<body class="shell">
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="app">
+    {% include "components/sidebar.html" %}
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          {% include "components/icon.html" with name="menu" %}
+        </button>
+        <div class="crumb">{% if is_admin %}Admin{% elif is_teacher %}Teacher{% else %}Student{% endif %} <span class="crumb-sep">/</span> <b>{% block page_title %}QuizArena{% endblock %}</b></div>
+        <span class="spacer"></span>
+        {% include "components/topbar_right.html" %}
+      </header>
+
+      {% include "components/announcement.html" %}
+      <main class="content">
+        {% include "components/messages.html" %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="{% static 'js/ui.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

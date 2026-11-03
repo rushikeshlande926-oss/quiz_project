@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Site settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Site settings</h1><p class="page-sub">Control sign-ups and tell everyone something important.</p></div></div>
+<form method="post">
+  {% csrf_token %}
+  <div class="settings-grid">
+    <div style="display:grid;gap:18px">
+      <div class="card">
+        <div class="card-head"><h2>Registration</h2></div>
+        <div class="switch-row">
+          <div class="grow"><b>Teacher sign-ups</b><span>New teachers can still only join with the invite code.</span></div>
+          <label class="switch" style="margin:0"><input type="checkbox" name="allow_teacher_registration" {% if site.allow_teacher_registration %}checked{% endif %} aria-label="Allow new teacher sign-ups"><i></i></label>
+        </div>
+        <div class="switch-row">
+          <div class="grow"><b>Student sign-ups</b><span>Turn off to stop new student accounts. Admins can still create them.</span></div>
+          <label class="switch" style="margin:0"><input type="checkbox" name="allow_student_registration" {% if site.allow_student_registration %}checked{% endif %} aria-label="Allow new student sign-ups"><i></i></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Announcement banner</h2></div>
+        <div class="switch-row" style="padding-top:0">
+          <div class="grow"><b>Show the banner</b><span>Appears at the top of every page for everyone, including the login page.</span></div>
+          <label class="switch" style="margin:0"><input type="checkbox" name="announcement_active" id="ann-on" {% if site.announcement_active %}checked{% endif %} aria-label="Show the announcement banner"><i></i></label>
+        </div>
+        <div class="field"><label for="ann-text">Message <span class="muted small">(max 300 characters)</span></label><textarea id="ann-text" name="announcement_text" rows="3" maxlength="300" placeholder="e.g. Maintenance tonight at 10 pm. Finish your exams before then.">{{ site.announcement_text }}</textarea></div>
+        <div class="field" style="margin-bottom:6px"><label>Style</label>
+          <div class="radio-chips">
+            <label><input type="radio" name="announcement_level" value="info" {% if site.announcement_level == 'info' %}checked{% endif %}>Info</label>
+            <label><input type="radio" name="announcement_level" value="warn" {% if site.announcement_level == 'warn' %}checked{% endif %}>Warning</label>
+            <label><input type="radio" name="announcement_level" value="ok" {% if site.announcement_level == 'ok' %}checked{% endif %}>Good news</label>
+          </div>
+        </div>
+      </div>
+      <div><button class="btn" type="submit">Save settings</button></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Preview</h2></div>
+      <p class="muted small" style="margin-top:0">This is how the banner looks. It updates as you type.</p>
+      <div class="announce announce-info" id="ann-preview" style="margin:0">{% include "components/icon.html" with name="megaphone" %}<span id="ann-preview-text">{{ site.announcement_text|default:"Your message appears here." }}</span></div>
+      <hr style="border:0;border-top:1px solid var(--border);margin:20px 0">
+      <h3>Other things you can manage</h3>
+      <dl class="kv" style="margin-top:12px">
+        <dt>Teacher invite code</dt><dd class="muted">Set the <code>TEACHER_INVITE_CODE</code> environment variable.</dd>
+        <dt>Gemini key / model</dt><dd class="muted">Set <code>GEMINI_API_KEY</code> and <code>GEMINI_MODEL</code>.</dd>
+        <dt>Superusers</dt><dd class="muted">Managed in the Django admin site.</dd>
+      </dl>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var text = document.getElementById('ann-text'), out = document.getElementById('ann-preview-text'), box = document.getElementById('ann-preview');
+  function level() { var r = document.querySelector('input[name=announcement_level]:checked'); return r ? r.value : 'info'; }
+  function paint() {
+    out.textContent = text.value.trim() || 'Your message appears here.';
+    box.className = 'announce announce-' + level();
+  }
+  text.addEventListener('input', paint);
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=announcement_level]'), function (r) { r.addEventListener('change', paint); });
+  paint();
+})();
+</script>
+{% endblock %}

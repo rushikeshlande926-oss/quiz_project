@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Teacher Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="page-head" style="margin:0">
+    <div>
+      <h1>Welcome back, {{ display_name }}</h1>
+      <p class="muted" style="margin:0">Create live quizzes, share a test code and keep an eye on your students in real time.</p>
+    </div>
+    <div class="toolbar">
+      <a class="btn btn-ghost" href="{% url 'reconduct_select' %}">{% include "components/icon.html" with name="repeat" %} Reconduct Test</a>
+      <a class="btn" href="{% url 'exam_create' %}">{% include "components/icon.html" with name="plus" %} New Quiz</a>
+    </div>
+  </div>
+</section>
+
+<div class="stat-grid">
+  {% include "components/stat_card.html" with icon="users" label="Total students" value=stats.students hint="Joined your quizzes" tone="" %}
+  {% include "components/stat_card.html" with icon="file" label="Quizzes" value=stats.quizzes hint="Created by you" tone="pink" %}
+  {% include "components/stat_card.html" with icon="timer" label="Active exams" value=stats.active hint="Running right now" tone="green" %}
+  {% include "components/stat_card.html" with icon="check" label="Completed exams" value=stats.completed hint="Closed sessions" tone="amber" %}
+</div>
+
+<div class="dash-cols">
+  <div class="card">
+    <div class="card-head"><h2>Quiz participation</h2><span class="muted small">Students per quiz</span></div>
+    {% if participation %}
+      <div class="chart-list">{% for r in participation %}{% include "components/hbar.html" with row=r %}{% endfor %}</div>
+    {% else %}
+      {% include "components/empty_state.html" with title="No participation yet" text="This chart fills in after students join your quizzes." %}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Exam outcomes</h2><span class="muted small">All attempts</span></div>
+    {% if outcome_total %}
+      <div class="donut-wrap">
+        <div class="donut" style="background: {{ donut_css }}"><div class="donut-center"><div><b>{{ outcome_total }}</b><span>attempts</span></div></div></div>
+        <div class="legend-list">
+          {% for p in outcome_parts %}<div><span class="dot" style="background: {{ p.colour }}"></span>{{ p.label }}: <b>{{ p.value }}</b></div>{% endfor %}
+          <div class="muted small">Flagged students: {{ stats.flagged }}</div>
+        </div>
+      </div>
+    {% else %}
+      {% include "components/empty_state.html" with title="No attempts yet" text="Outcomes appear once students start your quizzes." %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="dash-cols even">
+  <div class="card">
+    <div class="card-head"><h2>Student performance</h2><span class="muted small">Average score per quiz</span></div>
+    {% if scores %}
+      <div class="chart-list">{% for r in scores %}{% include "components/hbar.html" with row=r %}{% endfor %}</div>
+    {% else %}
+      {% include "components/empty_state.html" with title="No scores yet" text="Averages appear after students submit their quizzes." %}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Quick actions</h2></div>
+    <div class="quick">
+      <a class="btn" href="{% url 'exam_create' %}">{% include "components/icon.html" with name="plus" %} Create a quiz</a>
+      <a class="btn btn-ghost" href="{% url 'reconduct_select' %}">{% include "components/icon.html" with name="repeat" %} Reconduct a test</a>
+      <a class="btn btn-ghost" href="{% url 'quiz_list' %}">{% include "components/icon.html" with name="book" %} Practice quizzes</a>
+    </div>
+    {% if drafts %}
+      <h3 style="margin-top:18px">Ready to start an exam session?</h3>
+      {% for d in drafts %}
+        <div class="notif">
+          <div class="notif-dot info">{% include "components/icon.html" with name="timer" %}</div>
+          <div style="flex:1"><b>{{ d.title }}</b><div class="muted small">{{ d.num_questions }} questions &middot; {{ d.duration_minutes }} min</div></div>
+          <a class="btn btn-sm" href="{% url 'exam_monitor' d.id %}">Open</a>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="dash-cols even">
+  <div class="card" id="alerts">
+    <div class="card-head"><h2>Suspicious activity</h2>
+      <form method="post" action="{% url 'notifications_clear' %}" style="margin:0">{% csrf_token %}<input type="hidden" name="next" value="{% url 'teacher_dashboard' %}#alerts"><button class="btn btn-ghost btn-sm" type="submit">Clear notifications</button></form></div>
+    {% for ev in alerts %}
+      <div class="notif">
+        <div class="notif-dot {% if ev.kind == 'flagged' or ev.kind == 'terminated' %}bad{% endif %}">{% include "components/icon.html" with name="alert" %}</div>
+        <div>
+          <a href="{% url 'attempt_detail' ev.attempt_id %}">{{ ev.attempt.full_name }} (Roll {{ ev.attempt.roll_number }})</a>
+          <div>{{ ev.get_kind_display }}{% if ev.warning_number %} &middot; warning {{ ev.warning_number }}{% endif %}</div>
+          <div class="muted small">{{ ev.exam.title }} &middot; {{ ev.created_at|timesince }} ago</div>
+        </div>
+      </div>
+    {% empty %}
+      {% include "components/empty_state.html" with title="All quiet" text="Tab switches, fullscreen exits and flagged students will appear here." %}
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Recent activity</h2><span class="muted small">Across your quizzes</span></div>
+    {% for ev in activity %}
+      <div class="notif">
+        <div class="notif-dot info">{% include "components/icon.html" with name="activity" %}</div>
+        <div>
+          <b>{{ ev.attempt.full_name }}</b> &middot; {{ ev.get_kind_display }}
+          <div class="muted small">{{ ev.exam.title }} &middot; {{ ev.created_at|timesince }} ago</div>
+        </div>
+      </div>
+    {% empty %}
+      {% include "components/empty_state.html" with title="No activity yet" text="Joins, submissions and other events show up here." %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="page-head" style="margin-top:8px"><h2 style="margin:0">Your quizzes</h2></div>
+<div class="grid">
+  {% for e in exams %}
+    <div class="card quiz-card">
+      <div>
+        <h3>{{ e.title }}</h3>
+        {% if e.is_reconducted %}<div class="badges" style="margin-bottom:4px"><span class="badge badge-purple">Reconducted &middot; session {{ e.session_number }} of "{{ e.original.title }}"</span></div>{% endif %}
+        <div class="muted small">{{ e.num_questions }} questions &middot; {{ e.duration_minutes }} min &middot; {{ e.num_students }} students</div>
+        {% if e.status == "draft" and e.scheduled_start %}
+          <div class="muted small">Scheduled: {{ e.scheduled_start|date:"d M Y, H:i" }}</div>
+        {% endif %}
+      </div>
+      <div><span class="sbadge sb-{{ e.status }}">{{ e.get_status_display }}</span></div>
+      <div class="actions">
+        <a class="btn btn-sm" href="{% url 'exam_monitor' e.id %}">{% if e.status == "draft" %}Open{% else %}Monitor{% endif %}</a>
+        {% if e.status == "draft" %}
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_edit' e.id %}">Edit</a>
+        {% endif %}
+        {% if e.status != "draft" %}
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_results_csv' e.id %}">Results CSV</a>
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_reconduct' e.id %}">Reconduct</a>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <div class="card" style="grid-column: 1 / -1;">
+      {% include "components/empty_state.html" with title="No quizzes yet" text="Click New Quiz to create your first live quiz." %}
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base_auth.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="card">
+    <h1>Welcome back</h1>
+    <p class="muted">Login to take quizzes and climb the leaderboard.</p>
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn btn-block" type="submit">Login</button>
+    </form>
+    <p class="muted small center">New student? <a href="{% url 'register' %}">Create an account</a><br>
+    Teacher? <a href="{% url 'teacher_login' %}">Teacher login</a></p>
+  </div>
+</div>
+{% endblock %}

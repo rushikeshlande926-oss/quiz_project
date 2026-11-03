@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}My Classes{% endblock %}
+{% block page_title %}My Classes{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h1>My classes</h1>
+  <p class="muted">You can join only the exams of a class you are in. Enter the class code your teacher gave you.</p>
+  <div class="card" style="margin-bottom:16px">
+    <h3>Your classes</h3>
+    {% for e in enrollments %}
+      <div style="padding:8px 0; border-top:1px solid var(--border)">
+        <b>{{ e.classroom.name }}</b>
+        <div class="muted small">Teacher: {{ e.classroom.teacher.username }} &middot; Roll {{ e.roll_number|default:"-" }}</div>
+      </div>
+    {% empty %}
+      <p class="muted small">You are not in any class yet.</p>
+    {% endfor %}
+  </div>
+  <form method="post" class="card">
+    {% csrf_token %}
+    <h3>Join a class</h3>
+    {{ form.non_field_errors }}
+    <div class="field">{{ form.full_name.label_tag }}{{ form.full_name }}{{ form.full_name.errors }}</div>
+    <div class="field">{{ form.roll_number.label_tag }}{{ form.roll_number }}{{ form.roll_number.errors }}</div>
+    <div class="field">{{ form.code.label_tag }}{{ form.code }}{{ form.code.errors }}</div>
+    <button class="btn btn-block" type="submit">Join class</button>
+  </form>
+</div>
+{% endblock %}

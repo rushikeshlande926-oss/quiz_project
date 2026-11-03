@@ -1,0 +1,17 @@
+{% extends "base_auth.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="card">
+    <h1>Create account</h1>
+    <p class="muted">Join to create quizzes from your notes and compete with others.</p>
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn btn-block" type="submit">Create account</button>
+    </form>
+    <p class="muted small center">Already have an account? <a href="{% url 'login' %}">Login</a><br>
+    Teacher? <a href="{% url 'teacher_login' %}">Teacher login</a></p>
+  </div>
+</div>
+{% endblock %}

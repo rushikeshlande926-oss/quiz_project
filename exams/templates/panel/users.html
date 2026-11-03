@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block page_title %}Users{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Users</h1><p class="page-sub">Create accounts, change roles, block or delete people. Tick rows to act on many at once.</p></div>
+  <div class="head-actions">
+    <a class="btn btn-ghost" href="{% url 'panel_users_export' %}?{{ request.GET.urlencode }}">{% include "components/icon.html" with name="download" %}Export CSV</a>
+    <button class="btn" type="button" onclick="document.getElementById('new-user').open=!document.getElementById('new-user').open;document.getElementById('new-user').scrollIntoView({behavior:'smooth',block:'center'})">{% include "components/icon.html" with name="plus" %}New user</button>
+  </div>
+</div>
+
+<details class="card" id="new-user" style="margin-bottom:16px">
+  <summary><b>Create an account</b> <span class="muted small">&middot; the password must be at least 8 characters</span></summary>
+  <form method="post" action="{% url 'panel_user_create' %}" class="form-grid" style="margin-top:14px">
+    {% csrf_token %}
+    <div class="field"><label for="nu-name">Username</label><input id="nu-name" type="text" name="username" required autocomplete="off"></div>
+    <div class="field"><label for="nu-pass">Password</label><input id="nu-pass" name="password" type="text" required autocomplete="off"></div>
+    <div class="field"><label for="nu-role">Role</label><select id="nu-role" name="role"><option value="student">Student</option><option value="teacher">Teacher</option>{% if i_am_superuser %}<option value="admin">Admin</option>{% endif %}</select></div>
+    <div class="field"><label>&nbsp;</label><button class="btn btn-block" type="submit" style="padding:11px">Create account</button></div>
+  </form>
+</details>
+
+<div class="filters">
+  <div class="tabs-seg">{% for key, label, n in tabs %}<a class="{% if role == key %}on{% endif %}" href="?role={{ key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}&amp;sort={{ sort }}">{{ label }}<i>{{ n }}</i></a>{% endfor %}</div>
+  <span class="spacer"></span>
+  <form method="get" class="filters" style="margin:0">
+    <input type="hidden" name="role" value="{{ role }}">
+    <div class="search">{% include "components/icon.html" with name="search" %}<input type="search" name="q" value="{{ q }}" placeholder="Search name, username or email" data-search><kbd>/</kbd></div>
+    <select name="sort" data-autosubmit aria-label="Sort">{% for k, label in sorts %}<option value="{{ k }}" {% if sort == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  </form>
+</div>
+
+<div data-bulk>
+  <div class="dtable-wrap">
+    <div class="dtable-scroll">
+    <table class="dtable">
+      <thead><tr><th class="col-check"><input type="checkbox" class="bulk-all" aria-label="Select all on this page"></th><th>User</th><th>Role</th><th>Status</th><th>Joined</th><th>Last login</th><th class="col-actions">Actions</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="col-check">{% if not r.reason %}<input type="checkbox" class="bulk-item" name="ids" value="{{ r.u.id }}" form="bulk-form" aria-label="Select {{ r.u.username }}">{% endif %}</td>
+          <td><div class="u-cell">
+            <div class="u-avatar {% if r.role == 'Teacher' %}r-teacher{% elif r.role == 'Admin' %}r-admin{% endif %} {% if not r.u.is_active %}off{% endif %}">{{ r.u.username|slice:":1"|upper }}</div>
+            <div class="u-meta"><a class="cell-title" href="{% url 'panel_user_detail' r.u.id %}">{{ r.u.username }}</a>{% if r.u.id == me.id %} <span class="badge badge-muted">you</span>{% endif %}<span>{% if r.u.get_full_name %}{{ r.u.get_full_name }}{% elif r.u.email %}{{ r.u.email }}{% else %}&nbsp;{% endif %}</span></div>
+          </div></td>
+          <td><span class="badge {% if r.role == 'Admin' %}badge-amber{% elif r.role == 'Teacher' %}badge-pink{% else %}badge-purple{% endif %}">{{ r.role }}{% if r.u.is_superuser %} &middot; superuser{% endif %}</span></td>
+          <td><span class="status-dot {% if not r.u.is_active %}off{% endif %}">{% if r.u.is_active %}Active{% else %}Blocked{% endif %}</span></td>
+          <td class="muted">{{ r.u.date_joined|date:"d M Y" }}</td>
+          <td class="muted">{% if r.u.last_login %}{{ r.u.last_login|timesince }} ago{% else %}Never{% endif %}</td>
+          <td class="col-actions"><div class="inline-actions">
+            <a class="btn btn-ghost btn-sm" href="{% url 'panel_user_detail' r.u.id %}">{% include "components/icon.html" with name="eye" %}View</a>
+            {% if r.reason and r.u.id != me.id %}<span class="muted small" title="{{ r.reason }}">Protected</span>
+            {% else %}
+            <div class="row-menu">
+              <button class="row-menu-btn" type="button" data-menu aria-label="More actions for {{ r.u.username }}">{% include "components/icon.html" with name="more" %}</button>
+              <div class="row-menu-list">
+                {% if r.u.id != me.id %}
+                  <form method="post" action="{% url 'panel_user_action' r.u.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="make_student"><button type="submit">{% include "components/icon.html" with name="book" %}Make student</button></form>
+                  <form method="post" action="{% url 'panel_user_action' r.u.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="make_teacher"><button type="submit">{% include "components/icon.html" with name="clipboard" %}Make teacher</button></form>
+                  {% if i_am_superuser %}<form method="post" action="{% url 'panel_user_action' r.u.id %}" data-confirm="Give {{ r.u.username }} full admin rights?" data-confirm-title="Make admin">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="make_admin"><button type="submit">{% include "components/icon.html" with name="shield" %}Make admin</button></form>{% endif %}
+                  <hr>
+                  {% if r.u.is_active %}<form method="post" action="{% url 'panel_user_action' r.u.id %}" data-confirm="{{ r.u.username }} will not be able to log in until you unblock them." data-confirm-title="Block this account?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="deactivate"><button type="submit">{% include "components/icon.html" with name="lock" %}Block login</button></form>
+                  {% else %}<form method="post" action="{% url 'panel_user_action' r.u.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="activate"><button type="submit">{% include "components/icon.html" with name="unlock" %}Unblock login</button></form>{% endif %}
+                {% endif %}
+                <form method="post" action="{% url 'panel_user_action' r.u.id %}" data-confirm="A new temporary password will be shown once. The old password stops working." data-confirm-title="Reset password for {{ r.u.username }}?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="reset_password"><button type="submit">{% include "components/icon.html" with name="key" %}Reset password</button></form>
+                {% if r.u.id != me.id %}<hr>
+                  <form method="post" action="{% url 'panel_user_action' r.u.id %}" data-danger data-confirm="This deletes {{ r.u.username }} and everything they created (exams, attempts, quizzes). This cannot be undone." data-confirm-title="Delete this account?" data-confirm-yes="Delete account">{% csrf_token %}<input type="hidden" name="action" value="delete"><button class="danger" type="submit">{% include "components/icon.html" with name="trash" %}Delete account</button></form>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+          </div></td>
+        </tr>
+      {% empty %}<tr><td colspan="7" class="empty">{% include "components/empty_state.html" with title="No users match" text="Try another search or filter." %}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% include "components/pagination.html" %}
+  </div>
+
+  <div class="bulk-bar">
+    <b><span class="bulk-count">0</span> selected</b>
+    <form class="bulk-form" id="bulk-form" method="post" action="{% url 'panel_users_bulk' %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select name="action" aria-label="Bulk action">
+        <option value="">Choose action...</option>
+        <option value="make_student">Make student</option>
+        <option value="make_teacher">Make teacher</option>
+        <option value="deactivate" data-confirm="These accounts will not be able to log in.">Block login</option>
+        <option value="activate">Unblock login</option>
+        <option value="delete" data-danger data-confirm="These accounts and everything they created will be deleted.">Delete accounts</option>
+      </select>
+      <button class="btn" type="submit">Apply</button>
+    </form>
+    <button type="button" class="bulk-clear">Clear selection</button>
+  </div>
+</div>
+{% endblock %}

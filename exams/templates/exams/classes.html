@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My Classes{% endblock %}
+{% block page_title %}My Classes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>My classes</h1>
+    <p class="muted" style="margin:0">Only students enrolled in a class can join the quizzes you assign to it.</p>
+  </div>
+</div>
+<form method="post" class="card" style="margin-bottom:16px">
+  {% csrf_token %}
+  <h3>Create a class</h3>
+  {{ form.non_field_errors }}
+  <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
+  <div class="field check">{{ form.allow_ai_quiz }}<label for="{{ form.allow_ai_quiz.id_for_label }}">{{ form.allow_ai_quiz.label }}</label></div>
+  <button class="btn" type="submit">Create class</button>
+</form>
+<div class="grid">
+  {% for c in classes %}
+    <div class="card quiz-card">
+      <div><h3>{{ c.name }}</h3>
+        <div class="muted small">{{ c.n_students }} students &middot; {{ c.n_exams }} quizzes &middot; Class code {{ c.join_code }}</div></div>
+      <div class="badges">{% if c.allow_ai_quiz %}<span class="badge badge-purple">Students may create AI quizzes</span>{% endif %}</div>
+      <div class="actions"><a class="btn btn-sm" href="{% url 'class_detail' c.id %}">Manage</a></div>
+    </div>
+  {% empty %}
+    <div class="card" style="grid-column: 1 / -1;"><h3>No classes yet</h3><p class="muted">Create your first class above, then add students to it.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

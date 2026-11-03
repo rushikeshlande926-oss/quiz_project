@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Admin log{% endblock %}
+{% block page_title %}Admin log{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Admin activity log</h1><p class="page-sub">Who changed what in the admin panel. Entries cannot be edited.</p></div>
+  <div class="head-actions"><a class="btn btn-ghost" href="{% url 'panel_log_export' %}?{{ request.GET.urlencode }}">{% include "components/icon.html" with name="download" %}Export CSV</a></div>
+</div>
+<div class="filters">
+  <form method="get" class="filters" style="margin:0">
+    <div class="search">{% include "components/icon.html" with name="search" %}<input type="search" name="q" value="{{ q }}" placeholder="Search admin, action or target" data-search><kbd>/</kbd></div>
+    <button class="btn btn-ghost" type="submit">Search</button>
+  </form>
+</div>
+<div class="dtable-wrap"><div class="dtable-scroll">
+<table class="dtable">
+  <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>On</th></tr></thead>
+  <tbody>
+  {% for e in page.object_list %}
+    <tr>
+      <td><div class="num">{{ e.created_at|date:"d M Y" }}</div><div class="cell-sub">{{ e.created_at|date:"H:i" }} &middot; {{ e.created_at|timesince }} ago</div></td>
+      <td>{% if e.actor %}<a href="{% url 'panel_user_detail' e.actor_id %}">{{ e.actor.username }}</a>{% else %}<span class="muted">(deleted)</span>{% endif %}</td>
+      <td>{{ e.action }}</td><td class="cell-title">{{ e.target }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="4" class="empty">{% include "components/empty_state.html" with title="No admin actions yet" text="Every change an admin makes is recorded here." %}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% include "components/pagination.html" %}
+</div>
+{% endblock %}

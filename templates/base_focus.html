@@ -1,0 +1,19 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% include "_head.html" %}
+  <title>{% block title %}QuizArena{% endblock %} - QuizArena</title>
+</head>
+<body class="focus">
+  <header class="focus-bar">
+    <span class="brand"><span class="brand-mark">Q</span><span class="brand-text">Quiz<b>Arena</b></span></span>
+    <span class="focus-tag">{% block focus_tag %}Online examination{% endblock %}</span>
+  </header>
+  <main class="focus-content">
+    {% include "components/messages.html" %}
+    {% block content %}{% endblock %}
+  </main>
+  <script src="{% static 'js/ui.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

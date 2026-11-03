@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ t.username }}{% endblock %}
+{% block page_title %}User details{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><a class="muted small" href="{% url 'panel_users' %}">&larr; All users</a><h1 style="margin-top:6px">{{ t.username }}</h1></div>
+</div>
+
+<div class="pgrid c21">
+  <div class="card">
+    <div class="profile-hero">
+      <div class="u-avatar lg {% if role == 'Teacher' %}r-teacher{% elif role == 'Admin' %}r-admin{% endif %} {% if not t.is_active %}off{% endif %}">{{ t.username|slice:":1"|upper }}</div>
+      <div class="grow">
+        <div style="font-size:22px;font-weight:800">{{ t.get_full_name|default:t.username }}</div>
+        <div class="muted">{{ t.email|default:"No email saved" }}</div>
+        <div class="badges" style="margin-top:10px">
+          <span class="badge {% if role == 'Admin' %}badge-amber{% elif role == 'Teacher' %}badge-pink{% else %}badge-purple{% endif %}">{{ role }}{% if t.is_superuser %} &middot; superuser{% endif %}</span>
+          <span class="status-dot {% if not t.is_active %}off{% endif %}">{% if t.is_active %}Active{% else %}Blocked{% endif %}</span>
+        </div>
+      </div>
+    </div>
+    <div class="facts">{% for label, n in facts %}<div class="fact"><b>{{ n }}</b><span>{{ label }}</span></div>{% endfor %}</div>
+    <dl class="kv">
+      <dt>Joined</dt><dd>{{ t.date_joined|date:"d M Y, H:i" }} ({{ t.date_joined|timesince }} ago)</dd>
+      <dt>Last login</dt><dd>{% if t.last_login %}{{ t.last_login|date:"d M Y, H:i" }} ({{ t.last_login|timesince }} ago){% else %}Never logged in{% endif %}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Actions</h2></div>
+    {% if reason and t.id != me.id %}
+      <div class="info-box warn">{{ reason }}</div>
+    {% else %}
+    <div class="quick" style="gap:8px">
+      {% if t.id != me.id %}
+        <form method="post" action="{% url 'panel_user_action' t.id %}" style="display:flex;gap:8px;margin:0">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+          <select name="action" aria-label="Change role"><option value="make_student">Student</option><option value="make_teacher">Teacher</option>{% if i_am_superuser %}<option value="make_admin">Admin</option>{% endif %}</select>
+          <button class="btn btn-soft" type="submit">Change role</button>
+        </form>
+        {% if t.is_active %}
+        <form method="post" action="{% url 'panel_user_action' t.id %}" data-confirm="{{ t.username }} will not be able to log in until you unblock them." data-confirm-title="Block this account?" style="margin:0">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><input type="hidden" name="action" value="deactivate"><button class="btn btn-ghost btn-block" type="submit" style="padding:10px">{% include "components/icon.html" with name="lock" %}Block login</button></form>
+        {% else %}
+        <form method="post" action="{% url 'panel_user_action' t.id %}" style="margin:0">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><input type="hidden" name="action" value="activate"><button class="btn btn-block" type="submit" style="padding:10px">{% include "components/icon.html" with name="unlock" %}Unblock login</button></form>
+        {% endif %}
+      {% endif %}
+      <form method="post" action="{% url 'panel_user_action' t.id %}" data-confirm="A new temporary password will be shown once. The old password stops working." data-confirm-title="Reset password?" style="margin:0">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><input type="hidden" name="action" value="reset_password"><button class="btn btn-ghost btn-block" type="submit" style="padding:10px">{% include "components/icon.html" with name="key" %}Reset password</button></form>
+      {% if t.id != me.id %}
+      <form method="post" action="{% url 'panel_user_action' t.id %}" data-danger data-confirm="This deletes {{ t.username }} and everything they created (exams, attempts, quizzes). This cannot be undone." data-confirm-title="Delete this account?" data-confirm-yes="Delete account" style="margin:0">{% csrf_token %}<input type="hidden" name="action" value="delete"><button class="btn btn-ghost danger btn-block" type="submit" style="padding:10px">{% include "components/icon.html" with name="trash" %}Delete account</button></form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="pgrid c2">
+  <form method="post" class="card">
+    {% csrf_token %}
+    <div class="card-head"><h2>Profile</h2></div>
+    <div class="form-grid">
+      <div class="field"><label for="f-first">First name</label><input id="f-first" type="text" name="first_name" value="{{ t.first_name }}" maxlength="150"></div>
+      <div class="field"><label for="f-last">Last name</label><input id="f-last" type="text" name="last_name" value="{{ t.last_name }}" maxlength="150"></div>
+    </div>
+    <div class="field"><label for="f-mail">Email</label><input id="f-mail" type="email" name="email" value="{{ t.email }}"></div>
+    <button class="btn" type="submit" {% if reason and t.id != me.id %}disabled{% endif %}>Save profile</button>
+  </form>
+
+  <div class="card">
+    <div class="card-head"><h2>Admin history</h2></div>
+    {% for e in log_rows %}<div class="list-row"><span class="log-dot"></span><div class="grow"><b>{{ e.action }}</b><div class="cell-sub">by {{ e.actor.username|default:"(deleted)" }} &middot; {{ e.created_at|timesince }} ago</div></div></div>
+    {% empty %}{% include "components/empty_state.html" with title="No admin changes yet" text="Role changes, blocks and resets for this account appear here." %}{% endfor %}
+  </div>
+</div>
+
+{% if exams or classes_teach or quizzes %}
+<div class="pgrid c2">
+  {% if exams %}<div class="card"><div class="card-head"><h2>Exams created</h2></div>
+    {% for e in exams %}<div class="list-row"><div class="grow"><a class="cell-title" href="{% url 'exam_monitor' e.id %}">{{ e.title }}</a><div class="cell-sub">{{ e.n_students }} students &middot; {{ e.created_at|date:"d M Y" }}</div></div><span class="sbadge sb-{{ e.status }}">{{ e.get_status_display }}</span></div>{% endfor %}
+  </div>{% endif %}
+  {% if classes_teach %}<div class="card"><div class="card-head"><h2>Classes taught</h2></div>
+    {% for c in classes_teach %}<div class="list-row"><div class="grow"><a class="cell-title" href="{% url 'class_detail' c.id %}">{{ c.name }}</a><div class="cell-sub">{{ c.n }} students</div></div><span class="code-pill" data-copy="{{ c.join_code }}" title="Click to copy">{{ c.join_code }}</span></div>{% endfor %}
+  </div>{% endif %}
+  {% if quizzes %}<div class="card"><div class="card-head"><h2>Practice quizzes</h2></div>
+    {% for z in quizzes %}<div class="list-row"><div class="grow"><a class="cell-title" href="{% url 'analytics' z.id %}">{{ z.title }}</a><div class="cell-sub">{{ z.created_at|date:"d M Y" }}</div></div><span class="badge {% if z.is_private %}badge-muted{% endif %}">{% if z.is_private %}Private{% else %}Public{% endif %}</span></div>{% endfor %}
+  </div>{% endif %}
+</div>
+{% endif %}
+
+{% if attempts or classes_in %}
+<div class="pgrid c2">
+  {% if attempts %}<div class="card"><div class="card-head"><h2>Exam attempts</h2></div>
+    {% for a in attempts %}<div class="list-row"><div class="grow"><a class="cell-title" href="{% url 'attempt_detail' a.id %}">{{ a.exam.title }}</a><div class="cell-sub">{{ a.created_at|date:"d M Y" }}{% if a.warning_count %} &middot; {{ a.warning_count }} warning{{ a.warning_count|pluralize }}{% endif %}</div></div><span class="sbadge sb-{{ a.status }}">{{ a.get_status_display }}</span></div>{% endfor %}
+  </div>{% endif %}
+  {% if classes_in %}<div class="card"><div class="card-head"><h2>Enrolled in</h2></div>
+    {% for en in classes_in %}<div class="list-row"><div class="grow"><a class="cell-title" href="{% url 'class_detail' en.classroom.id %}">{{ en.classroom.name }}</a><div class="cell-sub">{% if en.roll_number %}Roll {{ en.roll_number }}{% else %}No roll number{% endif %}</div></div></div>{% endfor %}
+  </div>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

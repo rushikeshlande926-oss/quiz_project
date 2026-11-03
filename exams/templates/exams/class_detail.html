@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ classroom.name }}{% endblock %}
+{% block page_title %}{{ classroom.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ classroom.name }}</h1>
+    <div class="muted small">Class code: <b>{{ classroom.join_code }}</b> &middot; students can also join with this code from their "My Classes" page</div>
+  </div>
+  <a class="btn btn-ghost" href="{% url 'classes_list' %}">All classes</a>
+</div>
+
+<div class="card section">
+  <h2>Settings</h2>
+  <form method="post" action="{% url 'class_settings' classroom.id %}">
+    {% csrf_token %}
+    <div class="field">{{ form.name.label_tag }}{{ form.name }}</div>
+    <div class="field check">{{ form.allow_ai_quiz }}<label for="{{ form.allow_ai_quiz.id_for_label }}">{{ form.allow_ai_quiz.label }}</label></div>
+    <button class="btn btn-sm" type="submit">Save settings</button>
+  </form>
+  <div class="toolbar" style="margin-top:12px">
+    <form method="post" action="{% url 'class_code_regenerate' classroom.id %}" onsubmit="return confirm('Make a new class code? The old code stops working.');">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit">New class code</button></form>
+    <form method="post" action="{% url 'class_delete' classroom.id %}" onsubmit="return confirm('Delete this class?');">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit">Delete class</button></form>
+  </div>
+</div>
+
+<div class="card section">
+  <h2>Add students</h2>
+  <p class="muted small">One student per line: <b>username, roll number, full name</b> (roll number and name are optional). The student must already have a student account.</p>
+  <form method="post" action="{% url 'class_add_students' classroom.id %}">
+    {% csrf_token %}
+    <div class="field"><textarea name="students" rows="5" placeholder="asha23, 23, Asha Patil&#10;rohan24, 24, Rohan Kale"></textarea></div>
+    <button class="btn" type="submit">Add students</button>
+  </form>
+</div>
+
+<div class="card section">
+  <h2>Students ({{ members|length }})</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Roll</th><th>Name</th><th>Username</th><th></th></tr></thead>
+      <tbody>
+        {% for m in members %}
+          <tr>
+            <td>{{ m.roll_number|default:"-" }}</td><td>{{ m.full_name|default:"-" }}</td><td>{{ m.student.username }}</td>
+            <td><form method="post" action="{% url 'class_remove_student' classroom.id m.id %}" onsubmit="return confirm('Remove this student from the class?');">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit">Remove</button></form></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="muted">No students yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card section">
+  <h2>Quizzes for this class</h2>
+  {% for e in exams %}
+    <div style="padding:6px 0"><a href="{% url 'exam_monitor' e.id %}">{{ e.title }}</a> <span class="muted small">&middot; {{ e.get_status_display }}</span></div>
+  {% empty %}
+    <p class="muted small">No quiz is assigned to this class yet. Choose this class when you create a quiz.</p>
+  {% endfor %}
+</div>
+{% endblock %}

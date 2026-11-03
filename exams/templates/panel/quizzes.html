@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Practice quizzes{% endblock %}
+{% block page_title %}Practice quizzes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Practice (AI) quizzes</h1><p class="page-sub">Quizzes made from notes by teachers and allowed students.</p></div>
+</div>
+
+<div class="filters">
+  <div class="tabs-seg">{% for key, label, n in tabs %}<a class="{% if vis == key %}on{% endif %}" href="?vis={{ key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ label }}<i>{{ n }}</i></a>{% endfor %}</div>
+  <span class="spacer"></span>
+  <form method="get" class="filters" style="margin:0"><input type="hidden" name="vis" value="{{ vis }}">
+    <div class="search">{% include "components/icon.html" with name="search" %}<input type="search" name="q" value="{{ q }}" placeholder="Search title or creator" data-search><kbd>/</kbd></div>
+  </form>
+</div>
+
+<div data-bulk>
+  <div class="dtable-wrap"><div class="dtable-scroll">
+  <table class="dtable">
+    <thead><tr><th class="col-check"><input type="checkbox" class="bulk-all" aria-label="Select all on this page"></th><th>Quiz</th><th>Creator</th><th>Questions</th><th>Attempts</th><th>Visibility</th><th>Leaderboard</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>
+    {% for z in page.object_list %}
+      <tr>
+        <td class="col-check"><input type="checkbox" class="bulk-item" name="ids" value="{{ z.id }}" form="bulk-form" aria-label="Select {{ z.title }}"></td>
+        <td><a class="cell-title" href="{% url 'analytics' z.id %}">{{ z.title }}</a><div class="cell-sub">{{ z.created_at|date:"d M Y" }}</div></td>
+        <td><a href="{% url 'panel_user_detail' z.created_by_id %}">{{ z.created_by.username }}</a></td>
+        <td class="num">{{ z.n_questions }}</td><td class="num">{{ z.n_attempts }}</td>
+        <td>{% if z.is_private %}<span class="badge badge-muted">Private</span> <span class="code-pill" data-copy="{{ z.join_code }}" title="Click to copy">{{ z.join_code }}</span>{% else %}<span class="badge">Public</span>{% endif %}</td>
+        <td>{% if z.show_leaderboard %}<span class="badge badge-purple">Shown</span>{% else %}<span class="badge badge-muted">Hidden</span>{% endif %}</td>
+        <td class="col-actions"><div class="inline-actions">
+          <a class="btn btn-ghost btn-sm" href="{% url 'analytics' z.id %}">{% include "components/icon.html" with name="activity" %}Analytics</a>
+          <div class="row-menu"><button class="row-menu-btn" type="button" data-menu aria-label="More actions for {{ z.title }}">{% include "components/icon.html" with name="more" %}</button>
+            <div class="row-menu-list">
+              <form method="post" action="{% url 'panel_quiz_action' z.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="toggle_leaderboard"><button type="submit">{% include "components/icon.html" with name="trophy" %}{% if z.show_leaderboard %}Hide leaderboard{% else %}Show leaderboard{% endif %}</button></form>
+              <form method="post" action="{% url 'panel_quiz_action' z.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="toggle_private"><button type="submit">{% include "components/icon.html" with name="lock" %}{% if z.is_private %}Make public{% else %}Make private{% endif %}</button></form>
+              <hr>
+              <form method="post" action="{% url 'panel_quiz_action' z.id %}" data-danger data-confirm-title="Delete this quiz?" data-confirm="The quiz and all its attempts are deleted. This cannot be undone." data-confirm-yes="Delete quiz">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="delete"><button class="danger" type="submit">{% include "components/icon.html" with name="trash" %}Delete quiz</button></form>
+            </div></div>
+        </div></td>
+      </tr>
+    {% empty %}<tr><td colspan="8" class="empty">{% include "components/empty_state.html" with title="No practice quizzes found" text="AI quizzes created from notes show up here." %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% include "components/pagination.html" %}
+  </div>
+  <div class="bulk-bar">
+    <b><span class="bulk-count">0</span> selected</b>
+    <form class="bulk-form" id="bulk-form" method="post" action="{% url 'panel_quizzes_bulk' %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select name="action" aria-label="Bulk action"><option value="">Choose action...</option><option value="make_public">Make public</option><option value="make_private">Make private</option><option value="show_board">Show leaderboard</option><option value="hide_board">Hide leaderboard</option><option value="delete" data-danger data-confirm="These quizzes and all their attempts will be deleted.">Delete quizzes</option></select>
+      <button class="btn" type="submit">Apply</button>
+    </form>
+    <button type="button" class="bulk-clear">Clear selection</button>
+  </div>
+</div>
+{% endblock %}

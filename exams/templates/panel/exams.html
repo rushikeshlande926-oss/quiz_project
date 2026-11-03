@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}All exams{% endblock %}
+{% block page_title %}Exams{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Live exams</h1><p class="page-sub">Monitor, close, download results or delete any teacher's exam.</p></div>
+  <div class="head-actions"><a class="btn btn-ghost" href="{% url 'panel_exams_export' %}?{{ request.GET.urlencode }}">{% include "components/icon.html" with name="download" %}Export CSV</a></div>
+</div>
+
+<div class="filters">
+  <div class="tabs-seg">{% for key, label, n in tabs %}<a class="{% if status == key %}on{% endif %}" href="?status={{ key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ label }}<i>{{ n }}</i></a>{% endfor %}</div>
+  <span class="spacer"></span>
+  <form method="get" class="filters" style="margin:0"><input type="hidden" name="status" value="{{ status }}">
+    <div class="search">{% include "components/icon.html" with name="search" %}<input type="search" name="q" value="{{ q }}" placeholder="Search title, teacher or class" data-search><kbd>/</kbd></div>
+  </form>
+</div>
+
+<div data-bulk>
+  <div class="dtable-wrap"><div class="dtable-scroll">
+  <table class="dtable">
+    <thead><tr><th class="col-check"><input type="checkbox" class="bulk-all" aria-label="Select all on this page"></th><th>Quiz</th><th>Teacher</th><th>Class</th><th>Status</th><th>Questions</th><th>Students</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>
+    {% for e in page.object_list %}
+      <tr>
+        <td class="col-check"><input type="checkbox" class="bulk-item" name="ids" value="{{ e.id }}" form="bulk-form" aria-label="Select {{ e.title }}"></td>
+        <td><a class="cell-title" href="{% url 'exam_monitor' e.id %}">{{ e.title }}</a><div class="cell-sub">{% if e.is_reconducted %}{{ e.session_label }} &middot; {% endif %}{{ e.duration_minutes }} min &middot; {{ e.created_at|date:"d M Y" }}</div></td>
+        <td><a href="{% url 'panel_user_detail' e.teacher_id %}">{{ e.teacher.username }}</a></td>
+        <td class="muted">{{ e.classroom.name|default:"-" }}</td>
+        <td><span class="sbadge sb-{{ e.status }}">{{ e.get_status_display }}</span></td>
+        <td class="num">{{ e.n_questions }}</td><td class="num">{{ e.n_students }}</td>
+        <td class="col-actions"><div class="inline-actions">
+          <a class="btn btn-ghost btn-sm" href="{% url 'exam_monitor' e.id %}">{% include "components/icon.html" with name="eye" %}Monitor</a>
+          <div class="row-menu"><button class="row-menu-btn" type="button" data-menu aria-label="More actions for {{ e.title }}">{% include "components/icon.html" with name="more" %}</button>
+            <div class="row-menu-list">
+              {% if e.status != 'draft' %}<a href="{% url 'exam_results_csv' e.id %}">{% include "components/icon.html" with name="download" %}Download results (CSV)</a>{% endif %}
+              {% if e.status == 'live' %}<form method="post" action="{% url 'panel_exams_bulk' %}" data-confirm-title="Close this exam?" data-confirm="It will close now for all students and unfinished attempts are submitted.">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="close"><input type="hidden" name="ids" value="{{ e.id }}"><button type="submit">{% include "components/icon.html" with name="pause" %}Close for everyone</button></form>{% endif %}
+              <hr>
+              <form method="post" action="{% url 'panel_exam_delete' e.id %}" data-danger data-confirm-title="Delete this exam?" data-confirm="The exam AND all its student results are deleted. This cannot be undone." data-confirm-yes="Delete exam">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="danger" type="submit">{% include "components/icon.html" with name="trash" %}Delete exam</button></form>
+            </div></div>
+        </div></td>
+      </tr>
+    {% empty %}<tr><td colspan="8" class="empty">{% include "components/empty_state.html" with title="No exams found" text="Try another filter, or wait for teachers to create exams." %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% include "components/pagination.html" %}
+  </div>
+  <div class="bulk-bar">
+    <b><span class="bulk-count">0</span> selected</b>
+    <form class="bulk-form" id="bulk-form" method="post" action="{% url 'panel_exams_bulk' %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select name="action" aria-label="Bulk action"><option value="">Choose action...</option><option value="close" data-confirm="Live exams will close now for all students. Others are skipped.">Close live exams</option><option value="delete" data-danger data-confirm="These exams AND all their student results will be deleted.">Delete exams</option></select>
+      <button class="btn" type="submit">Apply</button>
+    </form>
+    <button type="button" class="bulk-clear">Clear selection</button>
+  </div>
+</div>
+{% endblock %}

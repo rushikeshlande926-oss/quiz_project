@@ -1,0 +1,16 @@
+{% comment %}Pager + rows-per-page. Use: {% include "components/pagination.html" with page=page qs=qs per_page=per_page per_page_choices=per_page_choices %}{% endcomment %}
+<div class="pager">
+  <div class="pager-info muted small">
+    {% if page.paginator.count %}Showing <b>{{ page.start_index }}-{{ page.end_index }}</b> of <b>{{ page.paginator.count }}</b>{% else %}No results{% endif %}
+  </div>
+  <div class="pager-nav">
+    {% if page.has_previous %}<a class="pg" href="?{% if qs %}{{ qs }}&amp;{% endif %}page={{ page.previous_page_number }}" aria-label="Previous page">{% include "components/icon.html" with name="left" %}</a>{% else %}<span class="pg off">{% include "components/icon.html" with name="left" %}</span>{% endif %}
+    <span class="pg-now">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="pg" href="?{% if qs %}{{ qs }}&amp;{% endif %}page={{ page.next_page_number }}" aria-label="Next page">{% include "components/icon.html" with name="right" %}</a>{% else %}<span class="pg off">{% include "components/icon.html" with name="right" %}</span>{% endif %}
+  </div>
+  <form method="get" class="pager-size muted small">
+    {% for k, v in request.GET.items %}{% if k != 'per_page' and k != 'page' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+    <label for="per-page" style="display:inline;margin:0">Rows</label>
+    <select id="per-page" name="per_page" data-autosubmit>{% for n in per_page_choices %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+  </form>
+</div>

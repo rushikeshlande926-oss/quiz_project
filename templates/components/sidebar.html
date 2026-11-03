@@ -1,0 +1,42 @@
+<aside class="sidebar" id="sidebar" aria-label="Main navigation">
+  <a class="brand" href="{% if is_admin %}{% url 'panel_dashboard' %}{% elif is_teacher %}{% url 'teacher_dashboard' %}{% else %}{% url 'student_dashboard' %}{% endif %}">
+    <span class="brand-mark">Q</span><span class="brand-text">Quiz<b>Arena</b></span>
+  </a>
+  <nav class="nav">
+    {% if is_admin %}
+      <div class="nav-title">Manage</div>
+      <a class="nav-link {% if nav_section == 'p_dash' %}active{% endif %}" href="{% url 'panel_dashboard' %}" title="Overview">{% include "components/icon.html" with name="dashboard" %}<span class="nav-label">Overview</span></a>
+      <a class="nav-link {% if nav_section == 'p_users' %}active{% endif %}" href="{% url 'panel_users' %}" title="Users">{% include "components/icon.html" with name="users" %}<span class="nav-label">Users</span></a>
+      <a class="nav-link {% if nav_section == 'p_classes' %}active{% endif %}" href="{% url 'panel_classes' %}" title="Classes">{% include "components/icon.html" with name="clipboard" %}<span class="nav-label">Classes</span></a>
+      <a class="nav-link {% if nav_section == 'p_exams' %}active{% endif %}" href="{% url 'panel_exams' %}" title="Exams">{% include "components/icon.html" with name="timer" %}<span class="nav-label">Exams</span>{% if panel_live_exams %}<span class="nav-pill live" title="{{ panel_live_exams }} live now">{{ panel_live_exams }}</span>{% endif %}</a>
+      <a class="nav-link {% if nav_section == 'p_quizzes' %}active{% endif %}" href="{% url 'panel_quizzes' %}" title="Practice quizzes">{% include "components/icon.html" with name="book" %}<span class="nav-label">Practice quizzes</span></a>
+      <div class="nav-title">System</div>
+      <a class="nav-link {% if nav_section == 'p_log' %}active{% endif %}" href="{% url 'panel_log' %}" title="Admin log">{% include "components/icon.html" with name="activity" %}<span class="nav-label">Admin log</span></a>
+      <a class="nav-link {% if nav_section == 'p_settings' %}active{% endif %}" href="{% url 'panel_settings' %}" title="Settings">{% include "components/icon.html" with name="settings" %}<span class="nav-label">Settings</span></a>
+      {% if request.user.is_superuser %}<a class="nav-link" href="/admin/" title="Django admin">{% include "components/icon.html" with name="shield" %}<span class="nav-label">Django admin</span></a>{% endif %}
+    {% elif is_teacher %}
+      <div class="nav-title">Teacher</div>
+      <a class="nav-link {% if nav_section == 'dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' %}" title="Dashboard">{% include "components/icon.html" with name="dashboard" %}<span class="nav-label">Dashboard</span></a>
+      <a class="nav-link {% if nav_section == 'create' %}active{% endif %}" href="{% url 'exam_create' %}" title="Create Quiz">{% include "components/icon.html" with name="plus" %}<span class="nav-label">Create Quiz</span></a>
+      <a class="nav-link {% if nav_section == 'reconduct' %}active{% endif %}" href="{% url 'reconduct_select' %}" title="Reconduct Test">{% include "components/icon.html" with name="repeat" %}<span class="nav-label">Reconduct Test</span></a>
+      <a class="nav-link {% if nav_section == 'classes' %}active{% endif %}" href="{% url 'classes_list' %}" title="My Classes">{% include "components/icon.html" with name="users" %}<span class="nav-label">My Classes</span></a>
+      <div class="nav-title">Practice</div>
+      <a class="nav-link {% if nav_section == 'practice' %}active{% endif %}" href="{% url 'quiz_list' %}" title="Practice Quizzes">{% include "components/icon.html" with name="book" %}<span class="nav-label">Practice Quizzes</span></a>
+      <a class="nav-link {% if nav_section == 'ai_quiz' %}active{% endif %}" href="{% url 'upload_notes' %}" title="Create AI Quiz">{% include "components/icon.html" with name="sparkles" %}<span class="nav-label">Create AI Quiz</span></a>
+    {% else %}
+      <div class="nav-title">Student</div>
+      <a class="nav-link {% if nav_section == 'my_exams' %}active{% endif %}" href="{% url 'student_dashboard' %}" title="My Exams">{% include "components/icon.html" with name="clipboard" %}<span class="nav-label">My Exams</span></a>
+      <a class="nav-link {% if nav_section == 'join' %}active{% endif %}" href="{% url 'exam_join' %}" title="Join Exam">{% include "components/icon.html" with name="key" %}<span class="nav-label">Join Exam</span></a>
+      <a class="nav-link {% if nav_section == 'classes' %}active{% endif %}" href="{% url 'my_classes' %}" title="My Classes">{% include "components/icon.html" with name="users" %}<span class="nav-label">My Classes</span></a>
+      <div class="nav-title">Practice</div>
+      <a class="nav-link {% if nav_section == 'practice' %}active{% endif %}" href="{% url 'quiz_list' %}" title="Practice Quizzes">{% include "components/icon.html" with name="book" %}<span class="nav-label">Practice Quizzes</span></a>
+      {% if can_create_ai_quiz %}<a class="nav-link {% if nav_section == 'ai_quiz' %}active{% endif %}" href="{% url 'upload_notes' %}" title="Create AI Quiz">{% include "components/icon.html" with name="sparkles" %}<span class="nav-label">Create AI Quiz</span></a>{% endif %}
+    {% endif %}
+  </nav>
+  <div class="nav-foot">
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="nav-link nav-logout" type="submit" title="Logout">{% include "components/icon.html" with name="logout" %}<span class="nav-label">Logout</span></button>
+    </form>
+  </div>
+</aside>

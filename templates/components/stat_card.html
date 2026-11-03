@@ -1,0 +1,8 @@
+{% comment %}Use: {% include "components/stat_card.html" with icon="users" label="Students" value=12 hint="optional" tone="pink" %}{% endcomment %}<div class="stat-card">
+  <div class="stat-ico {{ tone }}">{% include "components/icon.html" with name=icon %}</div>
+  <div>
+    <div class="stat-label">{{ label }}</div>
+    <div class="stat-value">{{ value }}</div>
+    {% if hint %}<div class="stat-hint">{{ hint }}</div>{% endif %}
+  </div>
+</div>

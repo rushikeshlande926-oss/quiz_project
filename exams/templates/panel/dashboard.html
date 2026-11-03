@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Admin panel{% endblock %}
+{% block page_title %}Overview{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Admin overview</h1><p class="page-sub">Everything happening in QuizArena, at a glance.</p></div>
+  <div class="head-actions">
+    <a class="btn btn-ghost" href="{% url 'panel_settings' %}">{% include "components/icon.html" with name="megaphone" %}Post announcement</a>
+    <a class="btn" href="{% url 'panel_users' %}">{% include "components/icon.html" with name="plus" %}Add user</a>
+  </div>
+</div>
+
+<div class="stat-grid six">
+  {% for s in stats %}
+  <a class="stat-card" href="{{ s.url }}">
+    <div class="stat-ico {{ s.tone }}">{% include "components/icon.html" with name=s.icon %}</div>
+    <div><div class="stat-label">{{ s.label }}</div><div class="stat-value" data-count="{{ s.value }}">{{ s.value }}</div><div class="stat-hint">{{ s.hint }}</div></div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="pgrid c3">
+  <div class="card">
+    <div class="card-head"><h2>New sign-ups</h2><span class="sub">last 14 days &middot; {{ signups_total }} total</span></div>
+    <div class="spark">{% for c in signups %}<div class="col" data-tip="{{ c.label }}: {{ c.value }}"><span class="{% if not c.value %}zero{% endif %}" style="height:{{ c.height }}%"></span></div>{% endfor %}</div>
+    <div class="spark-axis"><span>{{ signups.0.label }}</span><span>Today</span></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Accounts</h2></div>
+    <div class="donut-wrap">
+      <div class="donut" style="background: {{ role_css }}"><div class="donut-center"><div><b>{{ role_total }}</b><span>users</span></div></div></div>
+      <div class="legend-list">{% for s in role_segments %}<div><span class="dot" style="background:{{ s.colour }}"></span>{{ s.label }} <b>{{ s.value }}</b> <span class="muted">({{ s.percent }}%)</span></div>{% endfor %}</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Exams</h2></div>
+    <div class="donut-wrap">
+      <div class="donut" style="background: {{ exam_css }}"><div class="donut-center"><div><b>{{ exam_total }}</b><span>exams</span></div></div></div>
+      <div class="legend-list">{% for s in exam_segments %}<div><span class="dot" style="background:{{ s.colour }}"></span>{{ s.label }} <b>{{ s.value }}</b></div>{% endfor %}</div>
+    </div>
+  </div>
+</div>
+
+<div class="pgrid c21">
+  <div class="card">
+    <div class="card-head"><h2>Exam attempts started</h2><span class="sub">last 14 days &middot; {{ attempts_total }} total</span></div>
+    <div class="spark alt">{% for c in attempts %}<div class="col" data-tip="{{ c.label }}: {{ c.value }}"><span class="{% if not c.value %}zero{% endif %}" style="height:{{ c.height }}%"></span></div>{% endfor %}</div>
+    <div class="spark-axis"><span>{{ attempts.0.label }}</span><span>Today</span></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Quick actions</h2></div>
+    <div class="quick-grid">
+      <a class="quick-tile" href="{% url 'panel_users' %}">{% include "components/icon.html" with name="users" %}Manage users</a>
+      <a class="quick-tile" href="{% url 'panel_exams' %}?status=live">{% include "components/icon.html" with name="activity" %}Live exams</a>
+      <a class="quick-tile" href="{% url 'panel_classes' %}">{% include "components/icon.html" with name="clipboard" %}Classes</a>
+      <a class="quick-tile" href="{% url 'panel_users' %}?role=inactive">{% include "components/icon.html" with name="lock" %}Blocked users</a>
+    </div>
+  </div>
+</div>
+
+<div class="pgrid c2">
+  <div class="card">
+    <div class="card-head"><h2>Live right now</h2><a class="btn btn-ghost btn-sm" href="{% url 'panel_exams' %}?status=live">All live</a></div>
+    {% for e in live_exams %}
+    <div class="list-row">
+      <span class="log-dot green"></span>
+      <div class="grow"><a class="cell-title" href="{% url 'exam_monitor' e.id %}">{{ e.title }}</a><div class="cell-sub">{{ e.teacher.username }}{% if e.classroom %} &middot; {{ e.classroom.name }}{% endif %}</div></div>
+      <span class="num">{{ e.n_students }}</span><span class="muted small">students</span>
+      <a class="btn btn-soft btn-sm" href="{% url 'exam_monitor' e.id %}">Monitor</a>
+    </div>
+    {% empty %}{% include "components/empty_state.html" with title="No exam is running" text="Live exams will show up here." %}{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Busiest teachers</h2></div>
+    <div class="chart-list">{% for r in top_rows %}{% include "components/hbar.html" with row=r %}{% empty %}{% include "components/empty_state.html" with title="No exams yet" text="Teachers who create exams appear here." %}{% endfor %}</div>
+  </div>
+</div>
+
+<div class="pgrid c2">
+  <div class="card">
+    <div class="card-head"><h2>Newest accounts</h2><a class="btn btn-ghost btn-sm" href="{% url 'panel_users' %}">Manage users</a></div>
+    {% for u in recent_users %}
+    <div class="list-row"><div class="u-avatar">{{ u.username|slice:":1"|upper }}</div><div class="grow"><a class="cell-title" href="{% url 'panel_user_detail' u.id %}">{{ u.username }}</a><div class="cell-sub">joined {{ u.date_joined|timesince }} ago</div></div></div>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Latest exam activity</h2></div>
+    {% for ev in recent_events %}
+    <div class="list-row"><span class="log-dot {% if ev.kind == 'terminated' or ev.kind == 'flagged' %}red{% endif %}"></span><div class="grow"><b>{{ ev.attempt.full_name }} &middot; {{ ev.get_kind_display }}</b><div class="cell-sub">{{ ev.exam.title }} &middot; {{ ev.created_at|timesince }} ago</div></div></div>
+    {% empty %}{% include "components/empty_state.html" with title="No exam activity yet" text="Warnings, submissions and terminations appear here." %}{% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Recent admin actions</h2><a class="btn btn-ghost btn-sm" href="{% url 'panel_log' %}">Full log</a></div>
+  {% for e in recent_log %}
+  <div class="list-row"><span class="log-dot"></span><div class="grow"><b>{{ e.actor.username|default:"?" }}</b> &middot; {{ e.action }} <b>{{ e.target }}</b></div><span class="muted small">{{ e.created_at|timesince }} ago</span></div>
+  {% empty %}{% include "components/empty_state.html" with title="Nothing yet" text="Every change an admin makes is recorded here." %}{% endfor %}
+</div>
+{% endblock %}

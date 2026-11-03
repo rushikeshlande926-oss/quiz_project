@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}All classes{% endblock %}
+{% block page_title %}Classes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Classes</h1><p class="page-sub">{{ total }} class{{ total|pluralize:"es" }} &middot; {{ students_total }} enrolment{{ students_total|pluralize }}. Open one to add or remove students.</p></div>
+</div>
+
+<div class="filters">
+  <div class="tabs-seg">
+    <a class="{% if not ai %}on{% endif %}" href="?q={{ q|urlencode }}">All</a>
+    <a class="{% if ai == 'on' %}on{% endif %}" href="?ai=on&amp;q={{ q|urlencode }}">AI allowed</a>
+    <a class="{% if ai == 'off' %}on{% endif %}" href="?ai=off&amp;q={{ q|urlencode }}">AI blocked</a>
+  </div>
+  <span class="spacer"></span>
+  <form method="get" class="filters" style="margin:0"><input type="hidden" name="ai" value="{{ ai }}">
+    <div class="search">{% include "components/icon.html" with name="search" %}<input type="search" name="q" value="{{ q }}" placeholder="Search class, teacher or code" data-search><kbd>/</kbd></div>
+  </form>
+</div>
+
+<div data-bulk>
+  <div class="dtable-wrap"><div class="dtable-scroll">
+  <table class="dtable">
+    <thead><tr><th class="col-check"><input type="checkbox" class="bulk-all" aria-label="Select all on this page"></th><th>Class</th><th>Teacher</th><th>Students</th><th>Exams</th><th>Code</th><th>AI quizzes</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>
+    {% for c in page.object_list %}
+      <tr>
+        <td class="col-check"><input type="checkbox" class="bulk-item" name="ids" value="{{ c.id }}" form="bulk-form" aria-label="Select {{ c.name }}"></td>
+        <td><a class="cell-title" href="{% url 'class_detail' c.id %}">{{ c.name }}</a><div class="cell-sub">created {{ c.created_at|date:"d M Y" }}</div></td>
+        <td><a href="{% url 'panel_user_detail' c.teacher_id %}">{{ c.teacher.username }}</a></td>
+        <td class="num">{{ c.n_students }}</td><td class="num">{{ c.n_exams }}</td>
+        <td><span class="code-pill" data-copy="{{ c.join_code }}" title="Click to copy">{{ c.join_code }}</span></td>
+        <td>{% if c.allow_ai_quiz %}<span class="badge">Allowed</span>{% else %}<span class="badge badge-muted">Blocked</span>{% endif %}</td>
+        <td class="col-actions"><div class="inline-actions">
+          <a class="btn btn-ghost btn-sm" href="{% url 'class_detail' c.id %}">{% include "components/icon.html" with name="eye" %}Open</a>
+          <div class="row-menu"><button class="row-menu-btn" type="button" data-menu aria-label="More actions for {{ c.name }}">{% include "components/icon.html" with name="more" %}</button>
+            <div class="row-menu-list">
+              <form method="post" action="{% url 'panel_class_toggle_ai' c.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit">{% include "components/icon.html" with name="sparkles" %}{% if c.allow_ai_quiz %}Block AI quizzes{% else %}Allow AI quizzes{% endif %}</button></form>
+              <hr>
+              <form method="post" action="{% url 'panel_class_delete' c.id %}" data-danger data-confirm-title="Delete this class?" data-confirm="Its exams are kept, but nobody can join them until a new class is chosen." data-confirm-yes="Delete class">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="danger" type="submit">{% include "components/icon.html" with name="trash" %}Delete class</button></form>
+            </div></div>
+        </div></td>
+      </tr>
+    {% empty %}<tr><td colspan="8" class="empty">{% include "components/empty_state.html" with title="No classes found" text="Classes created by teachers show up here." %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% include "components/pagination.html" %}
+  </div>
+  <div class="bulk-bar">
+    <b><span class="bulk-count">0</span> selected</b>
+    <form class="bulk-form" id="bulk-form" method="post" action="{% url 'panel_classes_bulk' %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select name="action" aria-label="Bulk action"><option value="">Choose action...</option><option value="allow_ai">Allow AI quizzes</option><option value="block_ai">Block AI quizzes</option><option value="delete" data-danger data-confirm="These classes will be deleted. Their exams are kept.">Delete classes</option></select>
+      <button class="btn" type="submit">Apply</button>
+    </form>
+    <button type="button" class="bulk-clear">Clear selection</button>
+  </div>
+</div>
+{% endblock %}

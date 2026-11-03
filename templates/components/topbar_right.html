@@ -1,0 +1,25 @@
+<button class="icon-btn theme-btn" type="button" data-theme-toggle aria-label="Switch light or dark theme" title="Switch theme">
+  <span class="when-dark">{% include "components/icon.html" with name="sun" %}</span><span class="when-light">{% include "components/icon.html" with name="moon" %}</span>
+</button>
+{% if is_teacher %}
+  <a class="icon-btn" href="{% url 'teacher_dashboard' %}#alerts" title="Suspicious activity in the last 24 hours" aria-label="Notifications">
+    {% include "components/icon.html" with name="bell" %}
+    {% if alert_count %}<span class="bell-count">{{ alert_count }}</span>{% endif %}
+  </a>
+  {% if alert_count %}
+    <form method="post" action="{% url 'notifications_clear' %}" style="margin:0">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-ghost btn-sm" type="submit" title="Clear all notifications">Clear</button></form>
+  {% endif %}
+{% endif %}
+<div class="profile">
+  <button class="profile-btn" id="profile-btn" type="button" aria-haspopup="true" aria-expanded="false">
+    <span class="avatar">{{ initial }}</span>
+    <span class="profile-text"><span class="profile-name" style="display:block">{{ display_name }}</span><span class="profile-role">{% if is_admin %}Admin{% elif is_teacher %}Teacher{% else %}Student{% endif %}</span></span>
+  </button>
+  <div class="profile-menu hidden" id="profile-menu">
+    <a href="{% if is_admin %}{% url 'panel_dashboard' %}{% elif is_teacher %}{% url 'teacher_dashboard' %}{% else %}{% url 'student_dashboard' %}{% endif %}">{% include "components/icon.html" with name="dashboard" %}Dashboard</a>
+    <form method="post" action="{% url 'logout' %}" style="margin:0">
+      {% csrf_token %}
+      <button type="submit">{% include "components/icon.html" with name="logout" %}Logout</button>
+    </form>
+  </div>
+</div>
